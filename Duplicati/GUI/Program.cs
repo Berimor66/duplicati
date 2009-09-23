@@ -22,7 +22,10 @@ using System.Collections.Generic;
 using System.Windows.Forms;
 using System.Data.LightDatamodel;
 using System.Drawing;
+
 using Duplicati.Datamodel;
+using Gtk;
+using Gdk;
 
 namespace Duplicati.GUI
 {
@@ -37,6 +40,16 @@ namespace Duplicati.GUI
         /// This is the TrayIcon instance
         /// </summary>
         public static NotifyIcon TrayIcon;
+
+        /// <summary>
+        /// This is the TrayIcon for Mac OSX.
+        /// </summary>
+        private static StatusIcon gtkTrayIcon;
+
+		/// <summary>
+		/// This is the TrayIcon menu for Mac OSX
+		/// </summary>
+		private static Gtk.Menu gtkPopupMenu;
 
         /// <summary>
         /// This is the lock to be used before manipulating the shared resources
@@ -74,8 +87,6 @@ namespace Duplicati.GUI
         [STAThread]
         static void Main()
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
             SingleInstance singleInstance = null;
 
             try
@@ -84,7 +95,7 @@ namespace Duplicati.GUI
                 {
 #if DEBUG
                     //debug mode uses a lock file located in the app folder
-                    singleInstance = new SingleInstance(Application.ProductName, System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location));
+                    singleInstance = new SingleInstance(System.Windows.Forms.Application.ProductName, System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location));
 #else
                     //release mode uses the systems "Application Data" folder
                     singleInstance = new SingleInstance(Application.ProductName);
@@ -92,7 +103,7 @@ namespace Duplicati.GUI
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(string.Format(Strings.Program.StartupFailure, ex.ToString()), Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(string.Format(Strings.Program.StartupFailure, ex.ToString()), System.Windows.Forms.Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
@@ -106,14 +117,14 @@ namespace Duplicati.GUI
                 singleInstance.SecondInstanceDetected += new SingleInstance.SecondInstanceDelegate(singleInstance_SecondInstanceDetected);
 
 #if DEBUG
-                DatabasePath = System.IO.Path.Combine(Application.StartupPath, "Duplicati.sqlite");
+                DatabasePath = System.IO.Path.Combine(System.Windows.Forms.Application.StartupPath, "Duplicati.sqlite");
 #else
                 DatabasePath = System.IO.Path.Combine(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), Application.ProductName), "Duplicati.sqlite");
 #endif
                 if (new Version(System.Data.SQLite.SQLiteConnection.SQLiteVersion) < new Version(3, 6, 3))
                 {
                     //The official Mono SQLite provider is also broken with less than 3.6.3
-                    MessageBox.Show(string.Format(Strings.Program.WrongSQLiteVersion, System.Data.SQLite.SQLiteConnection.SQLiteVersion, "3.6.3"), Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(string.Format(Strings.Program.WrongSQLiteVersion, System.Data.SQLite.SQLiteConnection.SQLiteVersion, "3.6.3"), System.Windows.Forms.Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
@@ -129,7 +140,7 @@ namespace Duplicati.GUI
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(string.Format(Strings.Program.DatabaseOpenError, ex.Message), Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(string.Format(Strings.Program.DatabaseOpenError, ex.Message), System.Windows.Forms.Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
                 DataConnection = new DataFetcherWithRelations(new SQLiteDataProvider(con));
@@ -149,23 +160,62 @@ namespace Duplicati.GUI
                     }
                     catch(Exception ex)
                     {
-                        MessageBox.Show(string.Format(Strings.Program.LanguageSelectionError, ex.Message), Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show(string.Format(Strings.Program.LanguageSelectionError, ex.Message), System.Windows.Forms.Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
                         //This is non-fatal, just keep running with system default language
                     }
 
-                TrayIcon = new NotifyIcon();
-                TrayIcon.ContextMenuStrip = new ContextMenuStrip();
-                TrayIcon.Icon = Properties.Resources.TrayNormal;
+                
+				//Initialize the NotifyIcon, use Gtk StatusIcon on OSX because NotifyIcon is not implemented in mono on OSX.
+				TrayIcon = null;
+                gtkTrayIcon = null;
+                try {
+					System.Windows.Forms.Application.EnableVisualStyles();
+					System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false); 
+                  
+					TrayIcon = new NotifyIcon();
+                    TrayIcon.ContextMenuStrip = new ContextMenuStrip();
+                    TrayIcon.Icon = Properties.Resources.TrayNormal;
 
-                TrayIcon.ContextMenuStrip.Items.Add(Strings.Program.MenuStatus, Properties.Resources.StatusMenuIcon, new EventHandler(Status_Clicked));
-                TrayIcon.ContextMenuStrip.Items.Add(Strings.Program.MenuWizard, Properties.Resources.WizardMenuIcon, new EventHandler(Setup_Clicked));
-                TrayIcon.ContextMenuStrip.Items.Add(new ToolStripSeparator());
+                    TrayIcon.ContextMenuStrip.Items.Add(Strings.Program.MenuStatus, Properties.Resources.StatusMenuIcon, new EventHandler(Status_Clicked));
+                    TrayIcon.ContextMenuStrip.Items.Add(Strings.Program.MenuWizard, Properties.Resources.WizardMenuIcon, new EventHandler(Setup_Clicked));
+                    TrayIcon.ContextMenuStrip.Items.Add(new ToolStripSeparator());
 
-                TrayIcon.ContextMenuStrip.Items.Add(Strings.Program.MenuSettings, Properties.Resources.SettingsMenuIcon, new EventHandler(Settings_Clicked));
-                TrayIcon.ContextMenuStrip.Items.Add(new ToolStripSeparator());
+                    TrayIcon.ContextMenuStrip.Items.Add(Strings.Program.MenuSettings, Properties.Resources.SettingsMenuIcon, new EventHandler(Settings_Clicked));
+                    TrayIcon.ContextMenuStrip.Items.Add(new ToolStripSeparator());
 
-                TrayIcon.ContextMenuStrip.Items.Add(Strings.Program.MenuQuit, Properties.Resources.CloseMenuIcon, new EventHandler(Quit_Clicked));
-                TrayIcon.ContextMenuStrip.Items[0].Font = new Font(TrayIcon.ContextMenuStrip.Items[0].Font, FontStyle.Bold);
+                    TrayIcon.ContextMenuStrip.Items.Add(Strings.Program.MenuQuit, Properties.Resources.CloseMenuIcon, new EventHandler(Quit_Clicked));
+                    TrayIcon.ContextMenuStrip.Items[0].Font = new System.Drawing.Font(TrayIcon.ContextMenuStrip.Items[0].Font, FontStyle.Bold);
+                } catch (Exception exception) {
+
+					//We are probably dealing with OSX which doesn't support NotifyIcon, use Gtk# StatusIcon instead.
+                    Gtk.Application.Init();
+					gtkPopupMenu = new Gtk.Menu();
+
+					ImageMenuItem menuItemStatus = new ImageMenuItem(Strings.Program.MenuStatus);
+					menuItemStatus.Image = new Gtk.Image("Resources/StatusMenuIcon.png");
+					menuItemStatus.Activated += new EventHandler(Status_Clicked);
+					gtkPopupMenu.Add(menuItemStatus);
+
+					ImageMenuItem menuItemWizard = new ImageMenuItem(Strings.Program.MenuWizard);
+					menuItemWizard.Image = new Gtk.Image("Resources/WizardMenuIcon.png");
+					menuItemWizard.Activated += new EventHandler(Setup_Clicked);
+					gtkPopupMenu.Add(menuItemWizard);
+					gtkPopupMenu.Add(new Gtk.SeparatorMenuItem());
+
+					ImageMenuItem menuItemSettings = new ImageMenuItem(Strings.Program.MenuSettings);
+					menuItemSettings.Image = new Gtk.Image("Resources/SettingsMenuIcon.png");
+					menuItemSettings.Activated += new EventHandler(Settings_Clicked);
+					gtkPopupMenu.Add(menuItemSettings);
+					gtkPopupMenu.Add(new Gtk.SeparatorMenuItem());
+
+					ImageMenuItem menuItemQuit = new ImageMenuItem(Strings.Program.MenuQuit);
+					menuItemQuit.Image = new Gtk.Image("Resources/CloseMenuIcon.png");
+					menuItemQuit.Activated += new EventHandler(Quit_Clicked);
+					gtkPopupMenu.Add(menuItemQuit);
+
+					gtkTrayIcon = new StatusIcon("Resources/TrayNormal.ico");                 
+					gtkTrayIcon.PopupMenu += OnTrayIconPopup;
+                }
 
                 ApplicationSettings = new ApplicationSettings(DataConnection);
                 Runner = new DuplicatiRunner();
@@ -179,10 +229,15 @@ namespace Duplicati.GUI
 
                 DataConnection.AfterDataConnection += new DataConnectionEventHandler(DataConnection_AfterDataConnection);
 
-                TrayIcon.Text = Strings.Program.TrayStatusReady;
-
-                TrayIcon.DoubleClick += new EventHandler(TrayIcon_DoubleClick);
-                TrayIcon.Visible = true;
+                if (TrayIcon != null) {
+                    TrayIcon.Text = Strings.Program.TrayStatusReady;
+                    TrayIcon.DoubleClick += new EventHandler(TrayIcon_DoubleClick);
+                    TrayIcon.Visible = true;
+                } else {
+                    gtkTrayIcon.Tooltip = Strings.Program.TrayStatusReady;
+					gtkTrayIcon.Activate += new EventHandler(TrayIcon_DoubleClick);
+                    gtkTrayIcon.Visible = true;
+                }
 
                 long count = 0;
                 lock (MainLock)
@@ -194,11 +249,15 @@ namespace Duplicati.GUI
                     ShowWizard();
                 }
 
-                Application.Run();
+                if (TrayIcon != null) {
+                    System.Windows.Forms.Application.Run();
+                } else {
+                    Gtk.Application.Run();
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(string.Format(Strings.Program.SeriousError, ex.ToString()), Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(string.Format(Strings.Program.SeriousError, ex.ToString()), System.Windows.Forms.Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
             if (Scheduler != null)
@@ -207,6 +266,8 @@ namespace Duplicati.GUI
                 WorkThread.Terminate(true);
             if(TrayIcon != null)
                 TrayIcon.Visible = false;
+            if (gtkTrayIcon != null)
+                gtkTrayIcon.Visible = false;
             if (singleInstance != null)
                 singleInstance.Dispose();
         }
@@ -225,19 +286,35 @@ namespace Duplicati.GUI
 
         static void WorkThread_StartingWork(object sender, EventArgs e)
         {
-            TrayIcon.Icon = Properties.Resources.TrayWorking;
-            TrayIcon.Text = string.Format(Strings.Program.TrayStatusRunning, WorkThread.CurrentTask == null ? "" : WorkThread.CurrentTask.Schedule.Name);
+            if (TrayIcon != null) {
+                TrayIcon.Icon = Properties.Resources.TrayWorking;
+                TrayIcon.Text = string.Format(Strings.Program.TrayStatusRunning, WorkThread.CurrentTask == null ? "" : WorkThread.CurrentTask.Schedule.Name);
+            } else {
+				//OSX icon
+				gtkTrayIcon.Pixbuf = new Pixbuf("Resources/TrayWorking.ico");
+                gtkTrayIcon.Tooltip = string.Format(Strings.Program.TrayStatusRunning, WorkThread.CurrentTask == null ? "" : WorkThread.CurrentTask.Schedule.Name); 
+            }
         }
 
         static void WorkThread_CompletedWork(object sender, EventArgs e)
         {
-            TrayIcon.Icon = Properties.Resources.TrayNormal;
-            TrayIcon.Text = Strings.Program.TrayStatusReady;
+            if (TrayIcon != null) {
+                TrayIcon.Icon = Properties.Resources.TrayNormal;
+                TrayIcon.Text = Strings.Program.TrayStatusReady;
+            } else {
+				//OSX icon
+				gtkTrayIcon.Pixbuf = new Pixbuf("Resources/TrayNormal.ico");
+                gtkTrayIcon.Tooltip = Strings.Program.TrayStatusReady;
+            }
         }
 
         private static void Quit_Clicked(object sender, EventArgs e)
         {
-            Application.Exit();
+			if (TrayIcon != null) {
+				System.Windows.Forms.Application.Exit();
+			} else {
+				Gtk.Application.Quit();
+			}
         }
 
         private static void Settings_Clicked(object sender, EventArgs e)
@@ -321,6 +398,13 @@ namespace Duplicati.GUI
                 default:
                     return type.ToString();
             }
+        }
+
+        
+        //Create the popup menu, on right click on the Gtk# StatusIcon
+        static void OnTrayIconPopup(object o, EventArgs args) {
+			gtkPopupMenu.ShowAll();
+			gtkPopupMenu.Popup();
         }
 
     }
