@@ -202,9 +202,9 @@ namespace Duplicati.GUI
 
     public class ListBackupEntriesTask : BackupTask
     {
-        private List<Library.Main.BackupEntry> m_backups = null;
+        private List<Library.Main.ManifestEntry> m_backups = null;
         public override DuplicityTaskType TaskType { get { return DuplicityTaskType.ListBackupEntries; } }
-        public List<Library.Main.BackupEntry> Backups { get { return m_backups; } set { m_backups = value; } }
+        public List<Library.Main.ManifestEntry> Backups { get { return m_backups; } set { m_backups = value; } }
 
         public ListBackupEntriesTask(Schedule schedule)
             : base(schedule)

@@ -151,12 +151,12 @@ namespace Duplicati.CommandLine
                             Log.WriteMessage(msg, LogMessageType.Error);
                         }
 
-                List<Duplicati.Library.Main.BackupEntry> entries = Duplicati.Library.Main.Interface.ParseFileList(target, options);
+                List<Duplicati.Library.Main.ManifestEntry> entries = Duplicati.Library.Main.Interface.ParseFileList(target, options);
 
                 if (entries.Count != 1 || entries[0].Incrementals.Count != folders.Length - 1)
                     throw new Exception("Filename parsing problem, or corrupt storage");
 
-                List<Duplicati.Library.Main.BackupEntry> t = new List<Duplicati.Library.Main.BackupEntry>();
+                List<Duplicati.Library.Main.ManifestEntry> t = new List<Duplicati.Library.Main.ManifestEntry>();
                 t.Add(entries[0]);
                 t.AddRange(entries[0].Incrementals);
                 entries = t;

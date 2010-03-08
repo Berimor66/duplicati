@@ -140,10 +140,10 @@ namespace Duplicati.GUI
                     case DuplicityTaskType.ListBackups:
 
                         List<string> res = new List<string>();
-                        foreach (BackupEntry be in Interface.ParseFileList(destination, options))
+                        foreach (ManifestEntry be in Interface.ParseFileList(destination, options))
                         {
                             res.Add(be.Time.ToString());
-                            foreach (BackupEntry bei in be.Incrementals)
+                            foreach (ManifestEntry bei in be.Incrementals)
                                 res.Add(bei.Time.ToString());
                         }
 
@@ -283,7 +283,7 @@ namespace Duplicati.GUI
             return task.Backups;
         }
 
-        public List<BackupEntry> ListBackupEntries(Schedule schedule)
+        public List<ManifestEntry> ListBackupEntries(Schedule schedule)
         {
             ListBackupEntriesTask task = new ListBackupEntriesTask(schedule);
             ExecuteTask(task);

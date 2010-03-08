@@ -30,6 +30,16 @@ namespace Duplicati.Library.Main
     /// </summary>
     internal class FilenameStrategy
     {
+        /// <summary>
+        /// Describes the possible entry types
+        /// </summary>
+        public enum BackupEntryType
+        {
+            Manifest,
+            Signature,
+            Content
+        }
+
         private bool m_useShortFilenames;
         private string m_timeSeperator;
         private string m_prefix;
@@ -52,39 +62,38 @@ namespace Duplicati.Library.Main
         {
         }
 
-        public string GenerateFilename(BackupEntry entry)
+        public string GenerateFilename(BackupEntryBase entry)
         {
-            if (entry.Type == BackupEntry.EntryType.Content || entry.Type == BackupEntry.EntryType.Signature)
-                return GenerateFilename(entry.Type, entry.IsFull, entry.Time, entry.VolumeNumber);
+            if (entry is PayloadEntryBase)
+                return GenerateFilename(entry is SignatureEntry ? BackupEntryType.Signature : BackupEntryType.Content, entry.IsFull, entry.Time, ((PayloadEntryBase)entry).Volumenumber);
             else
-                return GenerateFilename(entry.Type, entry.IsFull, entry.Time);
+                return GenerateFilename(BackupEntryType.Manifest, entry.IsFull, entry.Time);
         }
 
-        public string GenerateFilename(BackupEntry.EntryType type, bool full, DateTime time, int volume)
+        public string GenerateFilename(BackupEntryType type, bool full, DateTime time, int volume)
         {
             return GenerateFilename(type, full, time) + ".vol" + volume.ToString();
         }
 
-        public string GenerateFilename(BackupEntry.EntryType type, bool full, DateTime time)
+        public string GenerateFilename(BackupEntryType type, bool full, DateTime time)
         {
             return GenerateFilename(type, full, m_useShortFilenames, time);
         }
 
-        public string GenerateFilename(BackupEntry.EntryType type, bool full, bool shortName, DateTime time)
+        public string GenerateFilename(BackupEntryType type, bool full, bool shortName, DateTime time)
         {
             string t;
-            if (type == BackupEntry.EntryType.Manifest)
+            if (type == BackupEntryType.Manifest)
                 t = shortName ? "M" : "manifest";
-            else if (type == BackupEntry.EntryType.Content)
+            else if (type == BackupEntryType.Content)
                 t = shortName ? "C" : "content";
-            else if (type == BackupEntry.EntryType.Signature)
+            else if (type == BackupEntryType.Signature)
                 t = shortName ? "S" : "signature";
             else
                 throw new Exception(string.Format(Strings.FilenameStrategy.InvalidEntryTypeError, type));
 
             if (!shortName)
             {
-
                 string datetime = time.ToString("yyyy-MM-ddTHH:mm:ssK").Replace(":", m_timeSeperator);
                 return m_prefix + "-" + (full ? "full" : "inc") + "-" + t + "." + datetime;
             }
@@ -94,7 +103,7 @@ namespace Duplicati.Library.Main
             }
         }
 
-        public BackupEntry DecodeFilename(Duplicati.Library.Backend.FileEntry fe)
+        public BackupEntryBase DecodeFilename(Duplicati.Library.Backend.FileEntry fe)
         {
             Match m = m_filenameRegExp.Match(fe.Name);
             if (!m.Success)
@@ -104,29 +113,26 @@ namespace Duplicati.Library.Main
             if (m.Value != fe.Name)
                 return null; //Accept only full matches
 
-            BackupEntry.EntryType type;
+            BackupEntryType type;
             if (m.Groups["type"].Value == "manifest" || m.Groups["type"].Value == "M")
-                type = BackupEntry.EntryType.Manifest;
+                type = BackupEntryType.Manifest;
             else if (m.Groups["type"].Value == "content" || m.Groups["type"].Value == "C")
-                type = BackupEntry.EntryType.Content;
+                type = BackupEntryType.Content;
             else if (m.Groups["type"].Value == "signature" || m.Groups["type"].Value == "S")
-                type = BackupEntry.EntryType.Signature;
+                type = BackupEntryType.Signature;
             else
                 return null;
 
             bool isFull = m.Groups["inc"].Value == "full" || m.Groups["inc"].Value == "F";
             bool isShortName = m.Groups["inc"].Value.Length == 1;
+            string timeString = m.Groups["time"].Value;
             DateTime time;
             if (isShortName)
-                time = new DateTime(long.Parse(m.Groups["time"].Value, System.Globalization.NumberStyles.HexNumber) * TimeSpan.TicksPerSecond, DateTimeKind.Utc).ToLocalTime();
+                time = new DateTime(long.Parse(timeString, System.Globalization.NumberStyles.HexNumber) * TimeSpan.TicksPerSecond, DateTimeKind.Utc).ToLocalTime();
             else
-                time = DateTime.Parse(m.Groups["time"].Value.Replace(m_timeSeperator, ":"));
+                time = DateTime.Parse(timeString.Replace(m_timeSeperator, ":"));
 
             string extension = m.Groups["extension"].Value;
-            /*if (extension.StartsWith("vol"))
-                extension = extension.Substring(extension.IndexOf(".") + 1);*/
-
-            //m = m_prefixParser.Match(extension);
 
             int volNumber = -1;
             if (m.Groups["volumenumber"].Success)
@@ -142,7 +148,14 @@ namespace Duplicati.Library.Main
                 compression = compression.Substring(0, dotIndex);
             }
 
-            return new BackupEntry(fe, time, type, isFull, isShortName, volNumber, compression, encryption);
+            if (type == BackupEntryType.Manifest)
+                return new ManifestEntry(fe.Name, fe, time, isFull, timeString, encryption);
+            else if (type == BackupEntryType.Signature)
+                return new SignatureEntry(fe.Name, fe, time, isFull, timeString, encryption, compression, volNumber);
+            else if (type == BackupEntryType.Content)
+                return new ContentEntry(fe.Name, fe, time, isFull, timeString, encryption, compression, volNumber);
+            else
+                return null;
         }
 
         public bool UseShortNames { get { return m_useShortFilenames; } }
