@@ -321,4 +321,10 @@
   <data name="AllowfullremoveShort" xml:space="preserve">
     <value>Allow removal of the all backups</value>
   </data>
+  <data name="DontreadmanifestsLong" xml:space="preserve">
+    <value>This option will make sure the contents of the manifest file are not read. This also implies that file hashes are not checked either. Use only for disaster recovery.</value>
+  </data>
+  <data name="DontreadmanifestsShort" xml:space="preserve">
+    <value>An option that prevents verifying the manifests</value>
+  </data>
 </root>

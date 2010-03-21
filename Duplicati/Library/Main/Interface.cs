@@ -217,7 +217,7 @@ namespace Duplicati.Library.Main
                                         backend.Put(new SignatureEntry(backuptime, full, vol + 1), signaturefile);
                                 }
 
-                                //The backend wrapper will remove this file
+                                //The backend wrapper will remove these
                                 Core.TempFile mf = new Duplicati.Library.Core.TempFile();
                                 mf.Protected = true;
 
@@ -227,7 +227,8 @@ namespace Duplicati.Library.Main
 
                                     OperationProgress(this, DuplicatiOperation.Backup, (int)(m_progress * 100), -1, string.Format(Strings.Interface.StatusUploadingManifestVolume, vol + 1), "");
 
-                                    backend.Put(new ManifestEntry(backuptime, full), mf);
+                                    //Alternate primary/secondary
+                                    backend.Put(new ManifestEntry(backuptime, full, manifest.SignatureHashes.Count % 2 != 0), mf);
                                 }
 
                                 //A control for partial uploads
@@ -287,6 +288,66 @@ namespace Duplicati.Library.Main
             CheckLiveControl();
         }
 
+        /// <summary>
+        /// Will attempt to read the manifest file, optinally revering to the secondary manifest if reading one fails.
+        /// </summary>
+        /// <param name="backend">The backendwrapper to read from</param>
+        /// <param name="entry">The manifest to read</param>
+        /// <returns>The parsed manifest</returns>
+        private Manifestfile GetManifest(BackendWrapper backend, ManifestEntry entry)
+        {
+            if (m_options.DontReadManifests)
+            {
+                Manifestfile mf = new Manifestfile();
+                mf.SignatureHashes = null;
+                mf.ContentHashes = null;
+                return mf;
+            }
+
+            bool parsingError = false;
+
+            using (new Logging.Timer("Get " + entry.Filename))
+            using (Core.TempFile tf = new Duplicati.Library.Core.TempFile())
+            {
+                try
+                {
+                    backend.Get(entry, tf, null);
+                    
+                    //We now have the file decrypted, if the next step fails,
+                    // its a broken xml or invalid content
+                    parsingError = true;
+                    Manifestfile mf = new Manifestfile(tf);
+                    if (m_options.SkipFileHashChecks)
+                    {
+                        mf.SignatureHashes = null;
+                        mf.ContentHashes = null;
+                    }
+                    return mf;
+                }
+                catch (Exception ex)
+                {
+                    //Only try secondary if the parsing/decrypting fails, not if the transfer fails
+                    if (entry.Alternate != null && (ex is System.Security.Cryptography.CryptographicException || parsingError))
+                    {
+                        //TODO: If it is a version error, there is no need to read the alternate version
+                        Logging.Log.WriteMessage(string.Format(Strings.Interface.PrimaryManifestReadErrorLogMessage, entry.Filename, ex.Message), Duplicati.Library.Logging.LogMessageType.Warning);
+                        try
+                        {
+                            Logging.Log.WriteMessage(string.Format(Strings.Interface.ReadingSecondaryManifestLogMessage, entry.Alternate.Filename), Duplicati.Library.Logging.LogMessageType.Information);
+                            return GetManifest(backend, entry.Alternate);
+                        }
+                        catch (Exception ex2)
+                        {
+                            Logging.Log.WriteMessage(string.Format(Strings.Interface.SecondaryManifestReadErrorLogMessage, entry.Alternate.Filename, ex2.Message), Duplicati.Library.Logging.LogMessageType.Warning);
+                        }
+                    }
+
+                    //Report the original error
+                    throw;
+                }
+            }
+        }
+
         public string Restore(string target)
         {
             SetupCommonOptions();
@@ -339,25 +400,11 @@ namespace Duplicati.Library.Main
                         {
                             m_progress = ((1.0 - INCREMENAL_COST) * (patchno / (double)patchCount)) + INCREMENAL_COST;
 
-                            Manifestfile manifest;
-
                             OperationProgress(this, DuplicatiOperation.Restore, (int)(m_progress * 100), -1, string.Format(Strings.Interface.StatusReadingManifest, be.Filename), "");
                             
                             CheckLiveControl();
 
-                            //TODO: Add option to also skip manifest checks
-                            using (new Logging.Timer("Get " + be.Filename))
-                            using (Core.TempFile tf = new Duplicati.Library.Core.TempFile())
-                            {
-                                backend.Get(be, tf, null);
-                                manifest = new Manifestfile(tf);
-                            }
-
-                            if (m_options.SkipFileHashChecks)
-                            {
-                                manifest.SignatureHashes = null;
-                                manifest.ContentHashes = null;
-                            }
+                            Manifestfile manifest = GetManifest(backend, be);
 
                             CheckLiveControl();
 
@@ -371,6 +418,7 @@ namespace Duplicati.Library.Main
                                 //Skip nonlisted
                                 if (manifest.ContentHashes != null && contentVol.Volumenumber > manifest.ContentHashes.Count)
                                 {
+                                    Logging.Log.WriteMessage(string.Format(Strings.Interface.SkippedContentVolumeLogMessage, contentVol.Volumenumber), Duplicati.Library.Logging.LogMessageType.Warning);
                                     patchno++;
                                     continue; //TODO: Report this
                                 }
@@ -492,16 +540,7 @@ namespace Duplicati.Library.Main
                             {
                                 OperationProgress(this, DuplicatiOperation.Backup, 0, -1, string.Format(Strings.Interface.StatusReadingIncrementalFile, be.Volumes[0].Key.Filename), "");
 
-                                Manifestfile mf;
-                                using (Core.TempFile manifestTemp = new Duplicati.Library.Core.TempFile())
-                                {
-                                    using (new Logging.Timer("Get " + be.Filename))
-                                        backend.Get(be, manifestTemp, null);
-                                    mf = new Manifestfile(manifestTemp);
-                                }
-
-                                if (m_options.SkipFileHashChecks)
-                                    mf.SignatureHashes = null;
+                                Manifestfile mf = GetManifest(backend, be);
 
                                 using (new Logging.Timer("Get " + be.Volumes[0].Key.Filename))
                                     backend.Get(be.Volumes[0].Key, z, mf.SignatureHashes == null ? null : mf.SignatureHashes[0]);
@@ -718,27 +757,27 @@ namespace Duplicati.Library.Main
 
                 backend.DeleteOrphans();
 
+                if (m_options.SkipFileHashChecks)
+                    throw new Exception(Strings.Interface.CannotCleanWithoutHashesError);
+                if (m_options.DontReadManifests)
+                    throw new Exception(Strings.Interface.CannotCleanWithoutHashesError);
+
                 //Now compare the actual filelist with the manifest
                 foreach (ManifestEntry be in entries)
                 {
-                    using (new Logging.Timer("Get " + be.Filename))
-                    using (Core.TempFile tf = new Duplicati.Library.Core.TempFile())
+                    Manifestfile manifest = GetManifest(backend, be);
+
+                    int count = manifest.ContentHashes.Count;
+
+                    for (int i = count - 1; i < be.Volumes.Count; i++)
                     {
-                        backend.Get(be, tf, null);
-                        Manifestfile manifest = new Manifestfile(tf);
-
-                        int count = manifest.ContentHashes.Count;
-
-                        for (int i = count - 1; i < be.Volumes.Count; i++)
+                        anyRemoved = true;
+                        Logging.Log.WriteMessage(string.Format(Strings.Interface.RemovingPartialFilesMessage, be.Volumes[i].Key.Filename), Duplicati.Library.Logging.LogMessageType.Information);
+                        Logging.Log.WriteMessage(string.Format(Strings.Interface.RemovingPartialFilesMessage, be.Volumes[i].Value.Filename), Duplicati.Library.Logging.LogMessageType.Information);
+                        if (m_options.Force)
                         {
-                            anyRemoved = true;
-                            Logging.Log.WriteMessage(string.Format(Strings.Interface.RemovingPartialFilesMessage, be.Volumes[i].Key.Filename), Duplicati.Library.Logging.LogMessageType.Information);
-                            Logging.Log.WriteMessage(string.Format(Strings.Interface.RemovingPartialFilesMessage, be.Volumes[i].Value.Filename), Duplicati.Library.Logging.LogMessageType.Information);
-                            if (m_options.Force)
-                            {
-                                backend.Delete(be.Volumes[i].Key);
-                                backend.Delete(be.Volumes[i].Value);
-                            }
+                            backend.Delete(be.Volumes[i].Key);
+                            backend.Delete(be.Volumes[i].Value);
                         }
                     }
                 }
@@ -838,19 +877,10 @@ namespace Duplicati.Library.Main
                 {
                     m_progress += unitCost;
 
-                    Manifestfile manifest;
 
                     OperationProgress(this, DuplicatiOperation.Backup, (int)(m_progress * 100), -1, string.Format(Strings.Interface.StatusReadingManifest, be.Time.ToShortDateString() + " " + be.Time.ToShortTimeString()), "");
 
-                    using (new Logging.Timer("Get " + be.Filename))
-                    using (Core.TempFile tf = new Duplicati.Library.Core.TempFile())
-                    {
-                        backend.Get(be, tf, null);
-                        manifest = new Manifestfile(tf);
-                    }
-
-                    if (m_options.SkipFileHashChecks)
-                        manifest.SignatureHashes = null;
+                    Manifestfile manifest = GetManifest(backend, be);
 
                     foreach (KeyValuePair<SignatureEntry, ContentEntry> bes in be.Volumes)
                     {
@@ -918,7 +948,7 @@ namespace Duplicati.Library.Main
             FilenameStrategy cachenames = BackendWrapper.CreateCacheFilenameStrategy();
             foreach (string s in Core.Utility.EnumerateFiles(folder))
             {
-                BackupEntryBase e = cachenames.DecodeFilename(new Duplicati.Library.Backend.FileEntry(System.IO.Path.GetFileName(s)));
+                BackupEntryBase e = cachenames.ParseFilename(new Duplicati.Library.Backend.FileEntry(System.IO.Path.GetFileName(s)));
                 if (e is SignatureEntry)
                 {
                     try { System.IO.File.Delete(s); }

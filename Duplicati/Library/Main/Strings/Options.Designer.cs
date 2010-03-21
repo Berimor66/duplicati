@@ -169,6 +169,24 @@ namespace Duplicati.Library.Main.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to This option will make sure the contents of the manifest file are not read. This also implies that file hashes are not checked either. Use only for disaster recovery..
+        /// </summary>
+        internal static string DontreadmanifestsLong {
+            get {
+                return ResourceManager.GetString("DontreadmanifestsLong", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to An option that prevents verifying the manifests.
+        /// </summary>
+        internal static string DontreadmanifestsShort {
+            get {
+                return ResourceManager.GetString("DontreadmanifestsShort", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Exclude files that match this filter. The filter is a &quot;file-globbing&quot; filter, much like commandline options. You can use &quot;*.txt&quot; to exclude all text files..
         /// </summary>
         internal static string ExcludeLong {

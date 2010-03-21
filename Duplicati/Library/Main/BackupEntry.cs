@@ -117,6 +117,8 @@ namespace Duplicati.Library.Main
     {
         protected List<KeyValuePair<SignatureEntry, ContentEntry>> m_volumes;
         protected List<ManifestEntry> m_incrementals;
+        protected ManifestEntry m_alternate;
+        protected bool m_isPrimary;
 
         /// <summary>
         /// Gets a list of volumes that make up this backup
@@ -126,18 +128,27 @@ namespace Duplicati.Library.Main
         /// Gets a list of incrementals that belong to this entry
         /// </summary>
         public List<ManifestEntry> Incrementals { get { return m_incrementals; } }
+        /// <summary>
+        /// Gets a value indicating if this manifest is the primary one
+        /// </summary>
+        public bool IsPrimary { get { return m_isPrimary; } }
+        /// <summary>
+        /// Gets or sets the alternate manifest file, if avalible
+        /// </summary>
+        public ManifestEntry Alternate { get { return m_alternate; } set { m_alternate = value; } }
 
-        public ManifestEntry(string filename, Backend.FileEntry entry, DateTime time, bool isFull, string timeString, string encryption)
+        public ManifestEntry(string filename, Backend.FileEntry entry, DateTime time, bool isFull, string timeString, string encryption, bool primary)
             : base(filename, entry, time, isFull, timeString, encryption)
         {
             m_volumes = new List<KeyValuePair<SignatureEntry, ContentEntry>>();
             m_incrementals = new List<ManifestEntry>();
+            m_isPrimary = primary;
         }
 
-        public ManifestEntry(DateTime time, bool full)
+        public ManifestEntry(DateTime time, bool full, bool primary)
             : base(null, null, time, full, null, null)
         {
-
+            m_isPrimary = primary;
         }
     }
 

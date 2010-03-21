@@ -194,9 +194,10 @@ namespace Duplicati.Library.Main
             Dictionary<string, List<SignatureEntry>> signatures = new Dictionary<string, List<SignatureEntry>>();
             Dictionary<string, List<ContentEntry>> contents = new Dictionary<string, List<ContentEntry>>();
 
+            //First we parse all files into their respective classes
             foreach (Duplicati.Library.Backend.FileEntry fe in files)
             {
-                BackupEntryBase be = m_filenamestrategy.DecodeFilename(fe);
+                BackupEntryBase be = m_filenamestrategy.ParseFilename(fe);
                 if (be == null)
                     continue; //Non-duplicati files
 
@@ -245,8 +246,31 @@ namespace Duplicati.Library.Main
             fulls.Sort(sortHelper);
             incrementals.Sort(sortHelper);
 
-            foreach (ManifestEntry be in fulls)
+            //Pair up the manifests in primary/alternate pairs
+            foreach(List<ManifestEntry> mfl in new List<ManifestEntry>[] {fulls, incrementals})
+                for (int i = 0; i < mfl.Count - 1; i++)
+                {
+                    if (mfl[i].TimeString == mfl[i + 1].TimeString && mfl[i].IsPrimary != mfl[i + 1].IsPrimary)
+                    {
+                        if (mfl[i].IsPrimary)
+                        {
+                            mfl[i].Alternate = mfl[i + 1];
+                            mfl.RemoveAt(i + 1);
+                        }
+                        else
+                        {
+                            mfl[i + 1].Alternate = mfl[i];
+                            mfl.RemoveAt(i);
+                        }
+                    }
+                }
+
+
+            //Attach volumes to the full backups
+            for(int i = 0; i < fulls.Count; i++)
             {
+                ManifestEntry be = fulls[i];
+
                 string key = be.TimeString;
                 if (contents.ContainsKey(key) && signatures.ContainsKey(key))
                 {
@@ -257,17 +281,20 @@ namespace Duplicati.Library.Main
 
                     int volCount = Math.Min(content.Count, signature.Count);
 
-                    for (int i = 0; i < volCount; i++)
-                        if (signature[0].Volumenumber == (i + 1) && content[0].Volumenumber == (i + 1))
+                    for (int j = 0; j < volCount; j++)
+                        if (signature[0].Volumenumber == (j + 1) && content[0].Volumenumber == (j + 1))
                         {
                             be.Volumes.Add(new KeyValuePair<SignatureEntry, ContentEntry>(signature[0], content[0]));
                             signature.RemoveAt(0);
                             content.RemoveAt(0);
                         }
                 }
+
+                fulls[i] = SwapManifestAlternates(be);
             }
 
 
+            //Attach volumes to the incrementals, and attach incrementals to the fulls
             int index = 0;
             foreach (ManifestEntry be in incrementals)
             {
@@ -281,8 +308,8 @@ namespace Duplicati.Library.Main
 
                     int volCount = Math.Min(content.Count, signature.Count);
 
-                    for (int i = 0; i < volCount; i++)
-                        if (signature[0].Volumenumber == (i + 1) && content[0].Volumenumber == (i + 1))
+                    for (int j = 0; j < volCount; j++)
+                        if (signature[0].Volumenumber == (j + 1) && content[0].Volumenumber == (j + 1))
                         {
                             be.Volumes.Add(new KeyValuePair<SignatureEntry, ContentEntry>(signature[0], content[0]));
                             signature.RemoveAt(0);
@@ -302,7 +329,7 @@ namespace Duplicati.Library.Main
                 {
                     while (index < fulls.Count - 1 && be.Time > fulls[index + 1].Time)
                         index++;
-                    fulls[index].Incrementals.Add(be);
+                    fulls[index].Incrementals.Add(SwapManifestAlternates(be));
                 }
             }
 
@@ -315,6 +342,25 @@ namespace Duplicati.Library.Main
                     AddOrphan(be);
 
             return fulls;
+        }
+
+        private ManifestEntry SwapManifestAlternates(ManifestEntry m)
+        {
+            if (m.Volumes.Count % 2 != 1 && m.Alternate != null)
+            {
+                m.Alternate.Incrementals.Clear();
+                m.Alternate.Incrementals.AddRange(m.Incrementals);
+                m.Alternate.Volumes.Clear();
+                m.Alternate.Volumes.AddRange(m.Volumes);
+
+                m.Incrementals.Clear();
+                m.Volumes.Clear();
+
+                m.Alternate.Alternate = m;
+                return m.Alternate;
+            }
+
+            return m;
         }
 
         public List<ManifestEntry> GetBackupSets()
@@ -579,7 +625,19 @@ namespace Duplicati.Library.Main
 
                         if (m_encryption != null)
                         {
-                            m_encryption.Decrypt(tempfile, filename);
+                            try
+                            {
+                                m_encryption.Decrypt(tempfile, filename);
+                            }
+                            catch (Exception ex)
+                            {
+                                //If we fail here, make sure that we throw a crypto exception
+                                if (ex is System.Security.Cryptography.CryptographicException)
+                                    throw;
+                                else
+                                    throw new System.Security.Cryptography.CryptographicException(ex.Message, ex);
+                            }
+
                             tempfile.Dispose(); //Remove the encrypted file
 
                             //Wrap the new file as a temp file

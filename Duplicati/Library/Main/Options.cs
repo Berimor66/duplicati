@@ -54,6 +54,7 @@ namespace Duplicati.Library.Main
                     new Backend.CommandLineArgument("signature-control-files", Backend.CommandLineArgument.ArgumentType.Path, Strings.Options.SignaturecontrolfilesShort, Strings.Options.SignaturecontrolfilesLong),
                     new Backend.CommandLineArgument("signature-cache-path", Backend.CommandLineArgument.ArgumentType.Path, Strings.Options.SignaturecachepathShort, Strings.Options.SignaturecachepathLong),
                     new Backend.CommandLineArgument("skip-file-hash-checks", Backend.CommandLineArgument.ArgumentType.Boolean, Strings.Options.SkipfilehashchecksShort, Strings.Options.SkipfilehashchecksLong),
+                    new Backend.CommandLineArgument("dont-read-manifests", Backend.CommandLineArgument.ArgumentType.Boolean, Strings.Options.DontreadmanifestsShort, Strings.Options.DontreadmanifestsLong),
                     new Backend.CommandLineArgument("file-to-restore", Backend.CommandLineArgument.ArgumentType.String, Strings.Options.FiletorestoreShort, Strings.Options.FiletorestoreLong),
                     new Backend.CommandLineArgument("restore-time", Backend.CommandLineArgument.ArgumentType.String, Strings.Options.RestoretimeShort, Strings.Options.RestoretimeLong, "now"),
 
@@ -191,6 +192,11 @@ namespace Duplicati.Library.Main
         /// A value indicating if file hash checks are skipped
         /// </summary>
         public bool SkipFileHashChecks { get { return GetBool("skip-file-hash-checks"); } }
+
+        /// <summary>
+        /// A value indicating if the manifest files are not read
+        /// </summary>
+        public bool DontReadManifests { get { return GetBool("dont-read-manifests"); } }
 
         /// <summary>
         /// Gets a list of files to restore

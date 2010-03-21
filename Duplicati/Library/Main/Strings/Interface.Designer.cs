@@ -88,6 +88,15 @@ namespace Duplicati.Library.Main.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to When using cleanup the manifests and hashes must be verified.
+        /// </summary>
+        internal static string CannotCleanWithoutHashesError {
+            get {
+                return ResourceManager.GetString("CannotCleanWithoutHashesError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Deleting backup at {0}.
         /// </summary>
         internal static string DeletingBackupSetMessage {
@@ -160,6 +169,24 @@ namespace Duplicati.Library.Main.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Failed to read the primary manifest {0}, attempting secondary, if avalible. Error message: {1}.
+        /// </summary>
+        internal static string PrimaryManifestReadErrorLogMessage {
+            get {
+                return ResourceManager.GetString("PrimaryManifestReadErrorLogMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Secondary manifest file found: {0}, attempting read..
+        /// </summary>
+        internal static string ReadingSecondaryManifestLogMessage {
+            get {
+                return ResourceManager.GetString("ReadingSecondaryManifestLogMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Removing partial file: {0}.
         /// </summary>
         internal static string RemovingPartialFilesMessage {
@@ -169,11 +196,29 @@ namespace Duplicati.Library.Main.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Failed to read the secondary manifest {0}. Error message: {1}.
+        /// </summary>
+        internal static string SecondaryManifestReadErrorLogMessage {
+            get {
+                return ResourceManager.GetString("SecondaryManifestReadErrorLogMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Signature cache path was not given as an argument.
         /// </summary>
         internal static string SignatureCachePathMissingError {
             get {
                 return ResourceManager.GetString("SignatureCachePathMissingError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The content volume {0} is not present in the manifest and is not used.
+        /// </summary>
+        internal static string SkippedContentVolumeLogMessage {
+            get {
+                return ResourceManager.GetString("SkippedContentVolumeLogMessage", resourceCulture);
             }
         }
         

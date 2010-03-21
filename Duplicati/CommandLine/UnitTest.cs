@@ -34,6 +34,24 @@ namespace Duplicati.CommandLine
     public class UnitTest
     {
         /// <summary>
+        /// A helper class to write debug messages to the log file
+        /// </summary>
+        private class LogHelper : StreamLog
+        {
+            public string Backupset { get; set; }
+            public LogHelper(string file)
+                : base(file)
+            {
+                this.Backupset = "none";
+            }
+
+            public override void WriteMessage(string message, LogMessageType type, Exception exception)
+            {
+                base.WriteMessage(this.Backupset + ", " + message, type, exception);
+            }
+        }
+
+        /// <summary>
         /// Running the unit test confirms the correctness of duplicati
         /// </summary>
         /// <param name="folders">The folders to backup. Folder at index 0 is the base, all others are incrementals</param>
@@ -59,7 +77,8 @@ namespace Duplicati.CommandLine
         /// <param name="target">The target destination for the backups</param>
         public static void RunTest(string[] folders, Dictionary<string, string> options, string target)
         {
-            Log.CurrentLog = new StreamLog("unittest.log");
+            LogHelper log = new LogHelper("unittest.log");
+            Log.CurrentLog = log; ;
             Log.LogLevel = Duplicati.Library.Logging.LogMessageType.Profiling;
 
             string tempdir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "tempdir");
@@ -123,6 +142,7 @@ namespace Duplicati.CommandLine
                         Console.WriteLine(Duplicati.Library.Main.Interface.RemoveAllButNFull(target, tmp));
                 }
 
+                log.Backupset = "Backup " + folders[0];
                 Console.WriteLine("Backing up the full copy: " + folders[0]);
                 using (new Timer("Full backup of " + folders[0]))
                 {
@@ -136,6 +156,7 @@ namespace Duplicati.CommandLine
                     //options["passphrase"] = "bad password";
                     //If the backups are too close, we can't pick the right one :(
                     System.Threading.Thread.Sleep(1000 * 5);
+                    log.Backupset = "Backup " + folders[i];
                     Console.WriteLine("Backing up the incremental copy: " + folders[i]);
                     using (new Timer("Incremental backup of " + folders[i]))
                         Log.WriteMessage(Duplicati.Library.Main.Interface.Backup(folders[i], target, options), LogMessageType.Information);
@@ -165,6 +186,7 @@ namespace Duplicati.CommandLine
                 {
                     using (TempFolder ttf = new TempFolder())
                     {
+                        log.Backupset = "Restore " + folders[i];
                         Console.WriteLine("Restoring the copy: " + folders[i]);
 
                         options["restore-time"] = entries[i].Time.ToString();
@@ -265,13 +287,16 @@ namespace Duplicati.CommandLine
                     return false;
                 }
                 else
-                    for (long l = 0; l < fs1.Length; l++)
+                {
+                    long len = fs1.Length;
+                    for (long l = 0; l < len; l++)
                         if (fs1.ReadByte() != fs2.ReadByte())
                         {
                             Log.WriteMessage("Mismatch in byte " + l.ToString() + " in file " + display, LogMessageType.Error);
                             Console.WriteLine("Mismatch in byte " + l.ToString() + " in file " + display);
                             return false;
                         }
+                }
 
             return true;
         }
