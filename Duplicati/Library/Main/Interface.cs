@@ -88,6 +88,9 @@ namespace Duplicati.Library.Main
             BackendWrapper backend = null;
             long volumesUploaded = 0;
 
+            if (m_options.DontReadManifests)
+                throw new Exception(Strings.Interface.ManifestsMustBeReadOnBackups);
+
 
             using (new Logging.Timer("Backup from " + source + " to " + m_backend))
             {
