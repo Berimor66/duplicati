@@ -70,6 +70,15 @@ namespace Duplicati.Library.Main.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The number of source paths in the manifest file are wrong.
+        /// </summary>
+        internal static string InvalidSourcePathError {
+            get {
+                return ResourceManager.GetString("InvalidSourcePathError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Invalid manifest, there were no files in the manifest.
         /// </summary>
         internal static string NoFilesError {

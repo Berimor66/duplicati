@@ -257,9 +257,9 @@ namespace Duplicati.Library.Main.RSync
 
 
         /// <summary>
-        /// This is the folder being backed up
+        /// This is the folders being backed up
         /// </summary>
-        public string m_sourcefolder;
+        public string[] m_sourcefolder;
 
         /// <summary>
         /// This is a list of existing file signatures.
@@ -383,11 +383,11 @@ namespace Duplicati.Library.Main.RSync
         /// <summary>
         /// Initializes a RSyncDir instance, binds it to the source folder, and reads in the supplied patches
         /// </summary>
-        /// <param name="sourcefolder">The folder to create a backup from</param>
+        /// <param name="sourcefolder">The folders to create a backup from</param>
         /// <param name="stat">The status report object</param>
         /// <param name="filter">An optional filter that controls what files to include</param>
         /// <param name="patches">A list of signature archives to read</param>
-        public RSyncDir(string sourcefolder, CommunicationStatistics stat, Core.FilenameFilter filter, List<Core.IFileArchive> patches)
+        public RSyncDir(string[] sourcefolder, CommunicationStatistics stat, Core.FilenameFilter filter, List<Core.IFileArchive> patches)
             : this(sourcefolder, stat, filter)
         {
             string[] prefixes = new string[] {
@@ -423,18 +423,22 @@ namespace Duplicati.Library.Main.RSync
         /// <summary>
         /// Initializes a RSyncDir instance, and binds it to the source folder
         /// </summary>
-        /// <param name="sourcefolder">The folder to create a backup from</param>
+        /// <param name="sourcefolder">The folders to create a backup from</param>
         /// <param name="stat">The status report object</param>
         /// <param name="filter">An optional filter that controls what files to include</param>
-        public RSyncDir(string sourcefolder, CommunicationStatistics stat, Core.FilenameFilter filter)
+        public RSyncDir(string[] sourcefolder, CommunicationStatistics stat, Core.FilenameFilter filter)
         {
-            if (!System.IO.Path.IsPathRooted(sourcefolder))
-                sourcefolder = System.IO.Path.GetFullPath(sourcefolder);
             m_filter = filter;
             m_oldSignatures = new Dictionary<string, ArchiveWrapper>();
             m_oldFolders = new Dictionary<string, string>();
-            m_sourcefolder = Core.Utility.AppendDirSeperator(sourcefolder);
+            for (int i = 0; i < sourcefolder.Length; i++)
+            {
+                if (!System.IO.Path.IsPathRooted(sourcefolder[i]))
+                    sourcefolder[i] = System.IO.Path.GetFullPath(sourcefolder[i]); 
+                sourcefolder[i] = Core.Utility.AppendDirSeperator(sourcefolder[i]);
+            }
             m_stat = stat;
+            m_sourcefolder = sourcefolder;
 
             if (m_filter == null)
                 m_filter = new Duplicati.Library.Core.FilenameFilter(new List<KeyValuePair<bool, string>>());
@@ -476,15 +480,17 @@ namespace Duplicati.Library.Main.RSync
             //TODO: Figure out how to make this faster, but still random
             //Perhaps use itterative callbacks, with random recurse or itterate on each folder
             //... we need to know the total length to provide a progress bar... :(
-            Core.Utility.EnumerateFileSystemEntries(m_sourcefolder, m_filter, new Duplicati.Library.Core.Utility.EnumerationCallbackDelegate(m_unproccesed.Callback));
+
+            foreach(string s in m_sourcefolder)
+                Core.Utility.EnumerateFileSystemEntries(s, m_filter, new Duplicati.Library.Core.Utility.EnumerationCallbackDelegate(m_unproccesed.Callback));
 
             m_totalfiles = m_unproccesed.Files.Count;
             m_isfirstmultipass = true;
             
             //Build folder diffs
-            for(int i = 0; i < m_unproccesed.Folders.Count; i++)
+            foreach(string s in m_unproccesed.Folders)
             {
-                string relpath = m_unproccesed.Folders[i].Substring(m_sourcefolder.Length);
+                string relpath = GetRelativeName(s);
                 if (relpath.Trim().Length != 0)
                 {
                     if (!m_oldFolders.ContainsKey(relpath))
@@ -498,6 +504,89 @@ namespace Duplicati.Library.Main.RSync
             foreach(string s in m_oldFolders.Keys)
                 if (!m_unproccesed.IsAffectedByError(s))
                     m_deletedfolders.Add(s);
+        }
+
+        /// <summary>
+        /// Gets the source folder that contains the given path
+        /// </summary>
+        /// <param name="path">The path to find the source folder for</param>
+        /// <returns>The source folder path</returns>
+        private string GetSourceFolder(string path)
+        {
+            foreach (string s in m_sourcefolder)
+                if (path.StartsWith(s, Core.Utility.IsFSCaseSensitive ? StringComparison.CurrentCulture : StringComparison.CurrentCultureIgnoreCase))
+                    return s;
+
+            throw new Exception(string.Format(Strings.RSyncDir.InternalPathMappingError, path, string.Join(System.IO.Path.PathSeparator.ToString(), m_sourcefolder)));
+        }
+
+        /// <summary>
+        /// Returns the relative name for a file.
+        /// </summary>
+        /// <param name="path"></param>
+        /// <returns></returns>
+        private string GetRelativeName(string path)
+        {
+            if (m_sourcefolder.Length == 1)
+                return path.Substring(m_sourcefolder[0].Length);
+
+            for(int i = 0; i < m_sourcefolder.Length; i++)
+                if (path.StartsWith(m_sourcefolder[i], Core.Utility.IsFSCaseSensitive ? StringComparison.CurrentCulture : StringComparison.CurrentCultureIgnoreCase))
+                    return System.IO.Path.Combine(i.ToString(), path.Substring(m_sourcefolder[i].Length));
+
+            throw new Exception(string.Format(Strings.RSyncDir.InternalPathMappingError, path, string.Join(System.IO.Path.PathSeparator.ToString(), m_sourcefolder)));
+        }
+
+        /// <summary>
+        /// Gets the system path, given a relative filename
+        /// </summary>
+        /// <param name="relpath">The relative filename</param>
+        /// <returns>The full system path to the file</returns>
+        private string GetFullPathFromRelname(string relpath)
+        {
+            if (m_sourcefolder.Length == 1)
+                return System.IO.Path.Combine(m_sourcefolder[0], relpath);
+            else
+            {
+                int ix = relpath.IndexOf(System.IO.Path.DirectorySeparatorChar);
+                int pos = int.Parse(relpath.Substring(0, ix));
+                return System.IO.Path.Combine(m_sourcefolder[pos], relpath.Substring(ix + 1));
+            }
+        }
+
+        /// <summary>
+        /// Maps a list of relative names to their full path names
+        /// </summary>
+        /// <param name="sourcefolders">The list of target folders supplied</param>
+        /// <param name="relpath">A list of relative filenames</param>
+        /// <returns>A list of absolute filenames</returns>
+        private static List<string> GetFullPathFromRelname(string[] sourcefolders, List<string> relpath)
+        {
+            for(int i = 0; i < relpath.Count; i++)
+                relpath[i] = GetFullPathFromRelname(sourcefolders, relpath[i]);
+
+            return relpath;
+        }
+
+        /// <summary>
+        /// Maps a relative name to its target folder
+        /// </summary>
+        /// <param name="sourcefolders">The list of target folders supplied</param>
+        /// <param name="relpath">The relative path to map</param>
+        /// <returns>A full path, based on the relative path</returns>
+        private static string GetFullPathFromRelname(string[] sourcefolders, string relpath)
+        {
+            if (sourcefolders.Length == 1)
+                return System.IO.Path.Combine(sourcefolders[0], relpath);
+            else
+            {
+                int ix = relpath.IndexOf(System.IO.Path.DirectorySeparatorChar);
+                int pos = int.Parse(relpath.Substring(0, ix));
+                if (ix >= sourcefolders.Length)
+                    return System.IO.Path.Combine(sourcefolders[sourcefolders.Length - 1], relpath);
+                else
+                    return System.IO.Path.Combine(sourcefolders[pos], relpath.Substring(ix + 1));
+            }
         }
 
         /// <summary>
@@ -515,10 +604,14 @@ namespace Duplicati.Library.Main.RSync
                 if (m_unproccesed.Files.Count == 0)
                 {
                     long stringsize = 0;
-                    foreach(string s in m_oldSignatures.Keys)
+                    foreach (string s in m_oldSignatures.Keys)
+                    {
+                        string sourcefolder = "<unknown>";
                         try
                         {
-                            if (!m_unproccesed.IsAffectedByError(System.IO.Path.Combine(m_sourcefolder, s)))
+                            string fullpath = GetFullPathFromRelname(s);
+                            sourcefolder = GetSourceFolder(fullpath);
+                            if (!m_unproccesed.IsAffectedByError(fullpath))
                             {
                                 m_deletedfiles.Add(s);
                                 stringsize += System.Text.Encoding.UTF8.GetByteCount(s + Environment.NewLine);
@@ -527,17 +620,21 @@ namespace Duplicati.Library.Main.RSync
                         catch (Exception ex)
                         {
                             if (m_stat != null)
-                                m_stat.LogError(string.Format(Strings.RSyncDir.DeletedFilenameError, s, m_sourcefolder)); 
-                            Logging.Log.WriteMessage(string.Format(Strings.RSyncDir.DeletedFilenameError, s, m_sourcefolder), Duplicati.Library.Logging.LogMessageType.Error, ex);
+                                m_stat.LogError(string.Format(Strings.RSyncDir.DeletedFilenameError, s, sourcefolder));
+                            Logging.Log.WriteMessage(string.Format(Strings.RSyncDir.DeletedFilenameError, s, sourcefolder), Duplicati.Library.Logging.LogMessageType.Error, ex);
                             m_unproccesed.FilesWithError.Add(s);
                         }
+                    }
 
                     if (m_deletedfiles.Count > 0)
                     {
                         //The +100 is a safety margin
                         stringsize += System.Text.Encoding.UTF8.GetByteCount(DELETED_FILES) + 100;
                         if (contentfile.Size + contentfile.FlushBufferSize + stringsize > volumesize)
+                        {
+                            m_deletedfiles.Clear();
                             return false; //The followup cannot fit in the volume, so we make a full new volume
+                        }
 
                         signaturefile.WriteAllLines(DELETED_FILES, m_deletedfiles.ToArray());
                         contentfile.WriteAllLines(DELETED_FILES, m_deletedfiles.ToArray());
@@ -615,7 +712,7 @@ namespace Duplicati.Library.Main.RSync
                     if (!m_disableFiletimeCheck)
                     {
                         //TODO: Make this check faster somehow
-                        string relpath = s.Substring(m_sourcefolder.Length);
+                        string relpath = GetRelativeName(s);
                         if (m_oldSignatures.ContainsKey(relpath))
                         {
                             if (System.IO.File.GetLastWriteTime(s) < m_oldSignatures[relpath].GetLastWriteTime(relpath))
@@ -672,7 +769,7 @@ namespace Duplicati.Library.Main.RSync
         /// <returns>The signature stream if the file is new or modified, null if the file has not been modified</returns>
         private System.IO.Stream ProccessDiff(System.IO.FileStream fs, string s, Core.IFileArchive signaturefile)
         {
-            string relpath = s.Substring(m_sourcefolder.Length);
+            string relpath = GetRelativeName(s);
 
             System.IO.MemoryStream ms = new MemoryStream();
             m_examinedfilesize += fs.Length;
@@ -726,7 +823,7 @@ namespace Duplicati.Library.Main.RSync
         {
             fs.Position = 0;
             signature.Position = 0;
-            string relpath = s.Substring(m_sourcefolder.Length);
+            string relpath = GetRelativeName(s);
 
             if (m_modifiedFiles.ContainsKey(s))
             {
@@ -855,22 +952,13 @@ namespace Duplicati.Library.Main.RSync
 
         public bool HasChanges { get { return m_newfiles.Count > 0 || m_modifiedFiles.Count > 0; } }
 
-        /*public List<string> EnumerateSourceFolders()
-        {
-            List<string> folders = Core.Utility.EnumerateFolders(m_sourcefolder);
-            for (int i = 0; i < folders.Count; i++)
-                folders[i] = System.IO.Path.Combine(System.IO.Path.Combine(m_targetfolder, SIGNATURE_ROOT), folders[i].Substring(m_sourcefolder.Length));
-            
-            return folders;
-        }*/
-
         /// <summary>
         /// Restores all files to the destination, given a set of content files.
         /// This function is not used by Duplicati.
         /// </summary>
         /// <param name="destination">The destination to restore to</param>
         /// <param name="patches">The list of patches (content files) to process</param>
-        public void Restore(string destination, List<Core.IFileArchive> patches)
+        public void Restore(string[] destination, List<Core.IFileArchive> patches)
         {
             if (patches != null)
             {
@@ -933,20 +1021,87 @@ namespace Duplicati.Library.Main.RSync
         }
 
         /// <summary>
+        /// Internal helper class to filter files during a partial restore
+        /// </summary>
+        private class FilterHelper
+        {
+            /// <summary>
+            /// A copy of the filter to use
+            /// </summary>
+            private Core.FilenameFilter m_filter;
+
+            /// <summary>
+            /// The list of folders to restore to
+            /// </summary>
+            private string[] m_folders;
+
+            /// <summary>
+            /// The parent folder
+            /// </summary>
+            private RSyncDir m_parent;
+
+            /// <summary>
+            /// Constructs a new filter helper
+            /// </summary>
+            /// <param name="folders">The restore folder list</param>
+            /// <param name="filter">The filter to apply to the files</param>
+            public FilterHelper(RSyncDir parent, string[] folders, Core.FilenameFilter filter)
+            {
+                m_parent = parent;
+                m_folders  = folders;
+                m_filter = filter;
+            }
+
+            /// <summary>
+            /// A filter predicate used to filter unwanted elements from the list
+            /// </summary>
+            /// <param name="element">The relative string to examine</param>
+            /// <returns>True if the element is accepted, false if it is filtered</returns>
+            private bool FilterPredicate(string element)
+            {
+                return m_filter.ShouldInclude(System.IO.Path.DirectorySeparatorChar.ToString(), System.IO.Path.DirectorySeparatorChar.ToString() + Core.Utility.AppendDirSeperator(element));
+            }
+
+            /// <summary>
+            /// A conversion delegate used to transform relative names into full names
+            /// </summary>
+            /// <param name="input">The relative filename</param>
+            /// <returns>The full path</returns>
+            private string GetFullpathFunc(string input)
+            {
+                return RSyncDir.GetFullPathFromRelname(m_folders, input);
+            }
+
+            /// <summary>
+            /// Filters a list by hooking into the enumeration system, rather than copying the list
+            /// </summary>
+            /// <param name="input">The list of relative filenames to filter</param>
+            /// <returns>A filtered list</returns>
+            public IEnumerable<string> Filterlist(IEnumerable<string> input)
+            {
+                return new Core.PlugableEnumerable<string>(new Predicate<string>(FilterPredicate), new Core.Func<string,string>(GetFullpathFunc), input);
+            }
+        }
+
+        /// <summary>
         /// Applies a patch (content file) to the destination
         /// </summary>
         /// <param name="destination">The destination that contains the previous version of the data</param>
         /// <param name="patch">The content file that the destination is patched with</param>
-        public void Patch(string destination, Core.IFileArchive patch)
+        public void Patch(string[] destination, Core.IFileArchive patch)
         {
             if (m_partialDeltas == null)
                 m_partialDeltas = new Dictionary<string, Duplicati.Library.Core.TempFile>();
 
-            destination = Core.Utility.AppendDirSeperator(destination);
+            for (int i = 0; i < destination.Length; i++)
+                destination[i] = Core.Utility.AppendDirSeperator(destination[i]);
+
+            //Set up the filter system to avoid dealing with filtered items
+            FilterHelper fh = new FilterHelper(this, destination, m_filter);
 
             //Delete all files that were removed
             if (patch.FileExists(DELETED_FILES))
-                foreach (string s in m_filter.FilterList(destination, FilenamesFromPlatformIndependant(patch.ReadAllLines(DELETED_FILES), destination)))
+                foreach (string s in fh.Filterlist(FilenamesFromPlatformIndependant(patch.ReadAllLines(DELETED_FILES))))
                 {
                     if (System.IO.File.Exists(s))
                     {
@@ -973,7 +1128,7 @@ namespace Duplicati.Library.Main.RSync
             {
                 if (m_folders_to_delete == null)
                     m_folders_to_delete = new List<string>();
-                List<string> deletedfolders = m_filter.FilterList(destination, FilenamesFromPlatformIndependant(patch.ReadAllLines(DELETED_FOLDERS), destination));
+                List<string> deletedfolders = new List<string>(fh.Filterlist(FilenamesFromPlatformIndependant(patch.ReadAllLines(DELETED_FOLDERS))));
                 //Make sure subfolders are deleted first
                 deletedfolders.Sort();
                 deletedfolders.Reverse();
@@ -989,7 +1144,7 @@ namespace Duplicati.Library.Main.RSync
             //as non-empty folders will also be created when files are restored
             if (patch.FileExists(ADDED_FOLDERS))
             {
-                List<string> addedfolders = m_filter.FilterList(destination, FilenamesFromPlatformIndependant(patch.ReadAllLines(ADDED_FOLDERS), destination));
+                List<string> addedfolders = new List<string>(fh.Filterlist(FilenamesFromPlatformIndependant(patch.ReadAllLines(ADDED_FOLDERS))));
 
                 //Make sure topfolders are created first
                 addedfolders.Sort();
@@ -1023,7 +1178,7 @@ namespace Duplicati.Library.Main.RSync
 
             foreach (string s in m_filter.FilterList(prefix, patch.ListFiles(prefix)))
             {
-                string target = System.IO.Path.Combine(destination, s.Substring(prefix.Length));
+                string target = GetFullPathFromRelname(destination, s.Substring(prefix.Length));
                 try
                 {
                     if (!System.IO.Directory.Exists(System.IO.Path.GetDirectoryName(target)))
@@ -1084,7 +1239,7 @@ namespace Duplicati.Library.Main.RSync
             prefix = Core.Utility.AppendDirSeperator(DELTA_ROOT);
             foreach (string s in m_filter.FilterList(prefix, patch.ListFiles(prefix)))
             {
-                string target = System.IO.Path.Combine(destination, s.Substring(prefix.Length));
+                string target = GetFullPathFromRelname(destination, s.Substring(prefix.Length));
                 try
                 {
                     if (!System.IO.Directory.Exists(System.IO.Path.GetDirectoryName(target)))
@@ -1303,16 +1458,16 @@ namespace Duplicati.Library.Main.RSync
         /// <param name="filenames">The list of filenames to convert</param>
         /// <param name="prefix">An optional prefix that is appended to the filenames</param>
         /// <returns>A list of filenames that use the prefix and the OS direseperator</returns>
-        public static string[] FilenamesFromPlatformIndependant(string[] filenames, string prefix)
+        public static string[] FilenamesFromPlatformIndependant(string[] filenames, string[] prefixes)
         {
-            if (prefix == null)
-                prefix = "";
+            if (prefixes == null)
+                prefixes = new string[] { "" };
 
             for (int i = 0; i < filenames.Length; i++)
                 if (System.IO.Path.DirectorySeparatorChar != '/')
-                    filenames[i] = prefix + filenames[i].Replace('/', System.IO.Path.DirectorySeparatorChar);
+                    filenames[i] = GetFullPathFromRelname(prefixes, filenames[i].Replace('/', System.IO.Path.DirectorySeparatorChar));
                 else
-                    filenames[i] = prefix + filenames[i];
+                    filenames[i] = GetFullPathFromRelname(prefixes, filenames[i]);
 
             return filenames;
         }
@@ -1325,7 +1480,7 @@ namespace Duplicati.Library.Main.RSync
         /// <returns>A list of filenames that use the prefix and the OS direseperator</returns>
         public static string[] FilenamesFromPlatformIndependant(string[] filenames)
         {
-            return FilenamesFromPlatformIndependant(filenames, "");
+            return FilenamesFromPlatformIndependant(filenames, null);
         }
 
         /// <summary>

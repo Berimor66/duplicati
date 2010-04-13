@@ -79,6 +79,24 @@ namespace Duplicati.Library.Main.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to This option can be used to disable the check for the same source folders. It is used in unittests, and is NOT intended for everyday use. Do not use this option unless you know what you are doing..
+        /// </summary>
+        internal static string AllowsourcefolderchangeLong {
+            get {
+                return ResourceManager.GetString("AllowsourcefolderchangeLong", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Skip verifying the source folders.
+        /// </summary>
+        internal static string AllowsourcefolderchangeShort {
+            get {
+                return ResourceManager.GetString("AllowsourcefolderchangeShort", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to By supplying this option, Duplicati will transmit files, while building volumes. This can shorten the time it takes to perform a backup, but requires more diskspace..
         /// </summary>
         internal static string AsynchronousuploadLong {

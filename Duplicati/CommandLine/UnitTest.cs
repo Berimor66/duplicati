@@ -106,6 +106,8 @@ namespace Duplicati.CommandLine
 
             //This would break the test, because the data is not modified the normal way
             options["disable-filetime-check"] = null;
+            //We do not use the same folder, so we need this option
+            options["allow-sourcefolder-change"] = null;
 
             using(new Timer("Total unittest"))
             using(TempFolder tf = new TempFolder())
@@ -147,7 +149,7 @@ namespace Duplicati.CommandLine
                 using (new Timer("Full backup of " + folders[0]))
                 {
                     options["full"] = "";
-                    Log.WriteMessage(Duplicati.Library.Main.Interface.Backup(folders[0], target, options), LogMessageType.Information);
+                    Log.WriteMessage(Duplicati.Library.Main.Interface.Backup(folders[0].Split(System.IO.Path.PathSeparator), target, options), LogMessageType.Information);
                     options.Remove("full");
                 }
 
@@ -159,7 +161,7 @@ namespace Duplicati.CommandLine
                     log.Backupset = "Backup " + folders[i];
                     Console.WriteLine("Backing up the incremental copy: " + folders[i]);
                     using (new Timer("Incremental backup of " + folders[i]))
-                        Log.WriteMessage(Duplicati.Library.Main.Interface.Backup(folders[i], target, options), LogMessageType.Information);
+                        Log.WriteMessage(Duplicati.Library.Main.Interface.Backup(folders[i].Split(System.IO.Path.PathSeparator), target, options), LogMessageType.Information);
                 }
 
                 Duplicati.Library.Main.Options opts = new Duplicati.Library.Main.Options(options);
@@ -192,12 +194,21 @@ namespace Duplicati.CommandLine
                         options["restore-time"] = entries[i].Time.ToString();
 
                         using (new Timer("Restore of " + folders[i]))
-                            Log.WriteMessage(Duplicati.Library.Main.Interface.Restore(target, ttf, options), LogMessageType.Information);
+                            Log.WriteMessage(Duplicati.Library.Main.Interface.Restore(target, new string[] { ttf }, options), LogMessageType.Information);
 
                         Console.WriteLine("Verifying the copy: " + folders[i]);
 
                         using (new Timer("Verification of " + folders[i]))
-                            VerifyDir(System.IO.Path.GetFullPath(folders[i]), ttf);
+                        {
+                            string[] actualfolders = folders[i].Split(System.IO.Path.PathSeparator);
+                            if (actualfolders.Length == 1)
+                                VerifyDir(System.IO.Path.GetFullPath(folders[i]), ttf);
+                            else
+                            {
+                                for (int j = 0; j < actualfolders.Length; j++)
+                                    VerifyDir(actualfolders[j], System.IO.Path.Combine(ttf, j.ToString()));
+                            }
+                        }
                     }
                 }
 

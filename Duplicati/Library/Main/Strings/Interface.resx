@@ -153,6 +153,9 @@
   <data name="NotDeletingLastFullMessage" xml:space="preserve">
     <value>The backup at time {0} is not removed because it is the last full backup, use --allow-full-removal to include this backup in the delete</value>
   </data>
+  <data name="NumberOfSourceFoldersHasChangedError" xml:space="preserve">
+    <value>The number of source folders in the latest backup is {0}, but the number of specified folders is now {1}. It is not allowed to change source folders for a backup.</value>
+  </data>
   <data name="PartialUploadMessage" xml:space="preserve">
     <value>Failed after uploading {0} volume(s). Error message: {1}</value>
   </data>
@@ -173,6 +176,15 @@
   </data>
   <data name="SkippedContentVolumeLogMessage" xml:space="preserve">
     <value>The content volume {0} is not present in the manifest and is not used</value>
+  </data>
+  <data name="SourceDirIsIncludedMultipleTimesError" xml:space="preserve">
+    <value>The folder {0} is included multiple times</value>
+  </data>
+  <data name="SourceDirsAreRelatedError" xml:space="preserve">
+    <value>The folder {1} is a subfolder of {0}. It is not allowed to specify the same folder multiple times.</value>
+  </data>
+  <data name="SourceFoldersHasChangedError" xml:space="preserve">
+    <value>The folder {0} is no longer in the source folder set. It is not allowed to change source folders for a backup.</value>
   </data>
   <data name="StatusBuildingFilelist" xml:space="preserve">
     <value>Building filelist ...</value>

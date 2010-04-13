@@ -120,6 +120,9 @@
   <data name="InvalidManifestError" xml:space="preserve">
     <value>The manifest file did not have the expected root Xml element: {0}</value>
   </data>
+  <data name="InvalidSourcePathError" xml:space="preserve">
+    <value>The number of source paths in the manifest file are wrong</value>
+  </data>
   <data name="NoFilesError" xml:space="preserve">
     <value>Invalid manifest, there were no files in the manifest</value>
   </data>

@@ -237,14 +237,14 @@ namespace Duplicati.CommandLine
                 if (!EnsurePassphrase(options))
                     return;
 
-                Console.WriteLine(Duplicati.Library.Main.Interface.Restore(source, target, options));
+                Console.WriteLine(Duplicati.Library.Main.Interface.Restore(source, target.Split(System.IO.Path.PathSeparator), options));
             }
             else
             {
                 if (!EnsurePassphrase(options))
                     return;
 
-                Console.WriteLine(Duplicati.Library.Main.Interface.Backup(source, target, options));
+                Console.WriteLine(Duplicati.Library.Main.Interface.Backup(source.Split(System.IO.Path.PathSeparator), target, options));
             }
         }
 

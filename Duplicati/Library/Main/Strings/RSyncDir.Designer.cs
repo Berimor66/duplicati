@@ -133,6 +133,15 @@ namespace Duplicati.Library.Main.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to An internal error occured. The path {0} is not a subpath of any of the source folders: {1}..
+        /// </summary>
+        internal static string InternalPathMappingError {
+            get {
+                return ResourceManager.GetString("InternalPathMappingError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The partial file record for {0} does not match the file.
         /// </summary>
         internal static string InvalidPartialFileEntry {

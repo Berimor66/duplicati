@@ -327,4 +327,10 @@
   <data name="DontreadmanifestsShort" xml:space="preserve">
     <value>An option that prevents verifying the manifests</value>
   </data>
+  <data name="AllowsourcefolderchangeLong" xml:space="preserve">
+    <value>This option can be used to disable the check for the same source folders. It is used in unittests, and is NOT intended for everyday use. Do not use this option unless you know what you are doing.</value>
+  </data>
+  <data name="AllowsourcefolderchangeShort" xml:space="preserve">
+    <value>Skip verifying the source folders</value>
+  </data>
 </root>

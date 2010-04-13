@@ -21,6 +21,11 @@ namespace Duplicati.Library.Main
         public List<string> ContentHashes { get; set; }
 
         /// <summary>
+        /// The list of source dirs, where the backups are created from
+        /// </summary>
+        public string[] SourceDirs { get; set; }
+
+        /// <summary>
         /// Gets the manifest file version
         /// </summary>
         public int Version { get; set; }
@@ -94,13 +99,19 @@ namespace Duplicati.Library.Main
             if (Version > MaxSupportedVersion)
                 throw new Exception(string.Format(Strings.Manifestfile.UnsupportedVersionError, Version, MaxSupportedVersion));
 
+            List<string> paths = new List<string>();
             foreach (XmlNode n in root.SelectNodes("ContentFiles/Hash"))
                 ContentHashes.Add(n.InnerText);
             foreach (XmlNode n in root.SelectNodes("SignatureFiles/Hash"))
                 SignatureHashes.Add(n.InnerText);
+            foreach (XmlNode n in root.SelectNodes("SourcePaths/Path"))
+                paths.Add(n.InnerText);
 
             if (SignatureHashes.Count == 0 || SignatureHashes.Count != ContentHashes.Count)
                 throw new Exception(string.Format(Strings.Manifestfile.WrongCountError, SignatureHashes.Count, ContentHashes.Count));
+            if (paths.Count == 0)
+                throw new Exception(Strings.Manifestfile.InvalidSourcePathError);
+            this.SourceDirs = paths.ToArray();
         }
 
         /// <summary>
@@ -148,10 +159,14 @@ namespace Duplicati.Library.Main
 
             XmlNode contentRoot = root.AppendChild(doc.CreateElement("ContentFiles"));
             XmlNode signatureRoot = root.AppendChild(doc.CreateElement("SignatureFiles"));
+            XmlNode sourcePathRoot = root.AppendChild(doc.CreateElement("SourcePaths"));
+
             foreach (string s in ContentHashes)
                 contentRoot.AppendChild(doc.CreateElement("Hash")).InnerText = s;
             foreach (string s in SignatureHashes)
                 signatureRoot.AppendChild(doc.CreateElement("Hash")).InnerText = s;
+            foreach (string s in SourceDirs)
+                sourcePathRoot.AppendChild(doc.CreateElement("Path")).InnerText = s;
 
             doc.Save(stream);
         }

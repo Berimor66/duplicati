@@ -86,6 +86,7 @@ namespace Duplicati.Library.Main
                     new Backend.CommandLineArgument("max-upload-pr-second", Backend.CommandLineArgument.ArgumentType.Size, Strings.Options.MaxuploadprsecondShort, Strings.Options.MaxuploadprsecondLong),
                     new Backend.CommandLineArgument("max-download-pr-second", Backend.CommandLineArgument.ArgumentType.Size, Strings.Options.MaxdownloadprsecondShort, Strings.Options.MaxdownloadprsecondLong),
                     new Backend.CommandLineArgument("skip-files-larger-than", Backend.CommandLineArgument.ArgumentType.Size, Strings.Options.SkipfileslargerthanShort, Strings.Options.SkipfileslargerthanLong),
+                    new Backend.CommandLineArgument("allow-sourcefolder-change", Backend.CommandLineArgument.ArgumentType.Boolean, Strings.Options.AllowsourcefolderchangeShort, Strings.Options.AllowsourcefolderchangeLong, "false"),
                 });
             }
         }
@@ -197,6 +198,11 @@ namespace Duplicati.Library.Main
         /// A value indicating if the manifest files are not read
         /// </summary>
         public bool DontReadManifests { get { return GetBool("dont-read-manifests"); } }
+
+        /// <summary>
+        /// A value indicating if the source folder is allowed to change
+        /// </summary>
+        public bool AllowSourceFolderChange { get { return GetBool("allow-sourcefolder-change"); } }
 
         /// <summary>
         /// Gets a list of files to restore

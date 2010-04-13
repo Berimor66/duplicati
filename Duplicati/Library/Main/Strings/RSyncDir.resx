@@ -168,4 +168,7 @@
   <data name="PartialLeftoverDeleteError" xml:space="preserve">
     <value>Failed to clean up the partial incomplete file {0}, error message: {1}</value>
   </data>
+  <data name="InternalPathMappingError" xml:space="preserve">
+    <value>An internal error occured. The path {0} is not a subpath of any of the source folders: {1}.</value>
+  </data>
 </root>

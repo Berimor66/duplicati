@@ -80,7 +80,7 @@ namespace Duplicati.Library.Main
                 throw new LiveControl.ExecutionStoppedException();
         }
 
-        public string Backup(string source)
+        public string Backup(string[] sources)
         {
             BackupStatistics bs = new BackupStatistics();
 
@@ -91,8 +91,16 @@ namespace Duplicati.Library.Main
             if (m_options.DontReadManifests)
                 throw new Exception(Strings.Interface.ManifestsMustBeReadOnBackups);
 
+            //Sanity check for duplicate folders and multiple inclusions of the same folder
+            for (int i = 0; i < sources.Length - 1; i++)
+                for (int j = i + 1; j < sources.Length; j++)
+                    if (sources[i].Equals(sources[j], Core.Utility.IsFSCaseSensitive ? StringComparison.CurrentCulture : StringComparison.CurrentCultureIgnoreCase))
+                        throw new Exception(string.Format(Strings.Interface.SourceDirIsIncludedMultipleTimesError, sources[i]));
+                    else if (sources[i].StartsWith(sources[j], Core.Utility.IsFSCaseSensitive ? StringComparison.CurrentCulture : StringComparison.CurrentCultureIgnoreCase))
+                        throw new Exception(string.Format(Strings.Interface.SourceDirsAreRelatedError, sources[i], sources[j]));
 
-            using (new Logging.Timer("Backup from " + source + " to " + m_backend))
+
+            using (new Logging.Timer("Backup from " + string.Join(";", sources) + " to " + m_backend))
             {
                 try
                 {
@@ -125,6 +133,10 @@ namespace Duplicati.Library.Main
                     if (!string.IsNullOrEmpty(m_options.SignatureControlFiles))
                         controlfiles.AddRange(m_options.SignatureControlFiles.Split(System.IO.Path.PathSeparator));
 
+                    int vol = 0;
+                    long totalsize = 0;
+                    Manifestfile manifest = new Manifestfile();
+
                     using (Core.TempFolder tempfolder = new Duplicati.Library.Core.TempFolder())
                     {
                         List<Core.IFileArchive> patches = new List<Duplicati.Library.Core.IFileArchive>();
@@ -136,13 +148,45 @@ namespace Duplicati.Library.Main
                             entries.AddRange(backupsets[backupsets.Count - 1].Incrementals);
 
                             patches = FindPatches(backend, entries, tempfolder);
+
+                            Manifestfile latest = GetManifest(backend, backupsets[0]);
+
+                            if (latest.SourceDirs.Length != sources.Length)
+                                throw new Exception(string.Format(Strings.Interface.NumberOfSourceFoldersHasChangedError, latest.SourceDirs.Length, sources.Length));
+
+                            if (!m_options.AllowSourceFolderChange)
+                            {
+                                foreach (string s1 in latest.SourceDirs)
+                                {
+                                    bool found = false;
+                                    foreach (string s2 in sources)
+                                        if (s1.Equals(s2, Core.Utility.IsFSCaseSensitive ? StringComparison.CurrentCulture : StringComparison.CurrentCultureIgnoreCase))
+                                        {
+                                            found = true;
+                                            break;
+                                        }
+
+                                    if (!found)
+                                        throw new Exception(string.Format(Strings.Interface.SourceFoldersHasChangedError, s1));
+                                }
+
+                                manifest.SourceDirs = latest.SourceDirs;
+                            }
+                            else
+                            {
+                                manifest.SourceDirs = sources;
+                            }
+
                         }
                         else
+                        {
                             m_incrementalFraction = 0.0;
+                            manifest.SourceDirs = sources;
+                        }
 
                         DateTime backuptime = DateTime.Now;
 
-                        using (RSync.RSyncDir dir = new Duplicati.Library.Main.RSync.RSyncDir(source, bs, m_options.Filter, patches))
+                        using (RSync.RSyncDir dir = new Duplicati.Library.Main.RSync.RSyncDir(manifest.SourceDirs, bs, m_options.Filter, patches))
                         {
                             OperationProgress(this, DuplicatiOperation.Backup, -1, -1, Strings.Interface.StatusBuildingFilelist, "");
 
@@ -154,11 +198,6 @@ namespace Duplicati.Library.Main
                             dir.MaxFileSize = m_options.SkipFilesLargerThan;
                             using (new Logging.Timer("Initiating multipass"))
                                 dir.InitiateMultiPassDiff(full);
-
-                            int vol = 0;
-                            long totalsize = 0;
-
-                            Manifestfile manifest = new Manifestfile();
 
                             bool done = false;
                             while (!done && totalsize < m_options.MaxSize)
@@ -351,7 +390,7 @@ namespace Duplicati.Library.Main
             }
         }
 
-        public string Restore(string target)
+        public string Restore(string[] target)
         {
             SetupCommonOptions();
             RestoreStatistics rs = new RestoreStatistics();
@@ -816,7 +855,7 @@ namespace Duplicati.Library.Main
 
                 List<Core.IFileArchive> patches = FindPatches(backend, entries, basefolder);
 
-                using (RSync.RSyncDir dir = new Duplicati.Library.Main.RSync.RSyncDir(basefolder, rs, filter, patches))
+                using (RSync.RSyncDir dir = new Duplicati.Library.Main.RSync.RSyncDir(new string[] { basefolder }, rs, filter, patches))
                     res = dir.UnmatchedFiles();
             }
 
@@ -939,7 +978,7 @@ namespace Duplicati.Library.Main
                 using (Core.TempFolder folder = new Duplicati.Library.Core.TempFolder())
                 {
                     List<Core.IFileArchive> patches = FindPatches(backend, new List<ManifestEntry>(new ManifestEntry[] { bestFit }), folder);
-                    using (RSync.RSyncDir dir = new Duplicati.Library.Main.RSync.RSyncDir(folder, new CommunicationStatistics(), null))
+                    using (RSync.RSyncDir dir = new Duplicati.Library.Main.RSync.RSyncDir(new string[] { folder }, new CommunicationStatistics(), null))
                         return dir.ListPatchFiles(patches);
                 }
             }
@@ -968,13 +1007,13 @@ namespace Duplicati.Library.Main
                 return i.List();
         }
 
-        public static string Backup(string source, string target, Dictionary<string, string> options)
+        public static string Backup(string[] source, string target, Dictionary<string, string> options)
         {
             using (Interface i = new Interface(target, options))
                 return i.Backup(source);
         }
 
-        public static string Restore(string source, string target, Dictionary<string, string> options)
+        public static string Restore(string source, string[] target, Dictionary<string, string> options)
         {
             using (Interface i = new Interface(source, options))
                 return i.Restore(target);
