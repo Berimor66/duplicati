@@ -62,11 +62,18 @@
     <Compile Include="ApplicationSetup.Designer.cs">
       <DependentUpon>ApplicationSetup.cs</DependentUpon>
     </Compile>
+    <Compile Include="DynamicSetupHelper.cs" />
     <Compile Include="HelperControls\BandwidthLimit.cs">
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="HelperControls\BandwidthLimit.Designer.cs">
       <DependentUpon>BandwidthLimit.cs</DependentUpon>
+    </Compile>
+    <Compile Include="HelperControls\FolderPathEntry.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="HelperControls\FolderPathEntry.Designer.cs">
+      <DependentUpon>FolderPathEntry.cs</DependentUpon>
     </Compile>
     <Compile Include="HelperControls\SizeSelector.cs">
       <SubType>UserControl</SubType>
@@ -229,6 +236,11 @@
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>DuplicatiRunner.resx</DependentUpon>
+    </Compile>
+    <Compile Include="Strings\DynamicSetupHelper.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>DynamicSetupHelper.resx</DependentUpon>
     </Compile>
     <Compile Include="Strings\ListBackupFiles.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -584,6 +596,10 @@
     <ProjectReference Include="..\Library\Core\Duplicati.Library.Core.csproj">
       <Project>{DE3E5D4C-51AB-4E5E-BEE8-E636CEBFBA65}</Project>
       <Name>Duplicati.Library.Core</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Library\Logging\Duplicati.Library.Logging.csproj">
+      <Project>{D10A5FC0-11B4-4E70-86AA-8AEA52BD9798}</Project>
+      <Name>Duplicati.Library.Logging</Name>
     </ProjectReference>
     <ProjectReference Include="..\Library\Main\Duplicati.Library.Main.csproj">
       <Project>{10D2D1B7-C664-41D8-9B3A-00040C3D421B}</Project>
@@ -1022,6 +1038,9 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Database schema\3. Default managed SSH.sql" />
+    <EmbeddedResource Include="HelperControls\FolderPathEntry.resx">
+      <DependentUpon>FolderPathEntry.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="HelperControls\Strings\FilterEditor.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>FilterEditor.Designer.cs</LastGenOutput>
@@ -1029,6 +1048,10 @@
     <EmbeddedResource Include="HelperControls\Strings\WaitForOperation.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>WaitForOperation.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Strings\DynamicSetupHelper.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>DynamicSetupHelper.Designer.cs</LastGenOutput>
     </EmbeddedResource>
     <None Include="Resources\Play.png" />
     <None Include="Resources\Delay.png" />
@@ -1046,6 +1069,7 @@
     <None Include="Resources\AddedFile.png" />
     <None Include="Resources\ModifiedFile.png" />
     <None Include="Resources\IncompleteFile.png" />
+    <None Include="Resources\Trash.png" />
     <Content Include="SQLite\pinvoke\System.Data.SQLite.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

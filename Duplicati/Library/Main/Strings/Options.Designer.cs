@@ -295,6 +295,24 @@ namespace Duplicati.Library.Main.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to It is not allowed to change the sourcefolder or the number of source folders. If this option is enabled, the backup will become a full backup if the source folders have changed, which will then start a new chain of backups with the new folder set. If --allow-sourcefolder-change is also set, a full backup is only issued if the number of of source folders have changed.
+        /// </summary>
+        internal static string FullifsourcefolderchangedLong {
+            get {
+                return ResourceManager.GetString("FullifsourcefolderchangedLong", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run a full backup if the sourcefolder has changed.
+        /// </summary>
+        internal static string FullifsourcefolderchangedShort {
+            get {
+                return ResourceManager.GetString("FullifsourcefolderchangedShort", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to When this flag is specified, Duplicati will make a full backup of all files, and ignore any incremental data..
         /// </summary>
         internal static string FullLong {

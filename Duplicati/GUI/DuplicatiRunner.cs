@@ -108,6 +108,16 @@ namespace Duplicati.GUI
                                     options["signature-control-files"] = filename;
                                 }
 
+                                options["full-if-sourcefolder-changed"] = "";
+
+                                List<KeyValuePair<bool, string>> filters = new List<KeyValuePair<bool, string>>();
+                                string[] sourceFolders = DynamicSetupHelper.GetSourceFolders(task.Task, new ApplicationSettings(task.Task.DataParent), filters);
+
+                                if (options.ContainsKey("filter"))
+                                    filters.AddRange(Library.Core.FilenameFilter.DecodeFilter(options["filter"]));
+
+                                options["filter"] = Library.Core.FilenameFilter.EncodeAsFilter(filters);
+
                                 using (Interface i = new Interface(destination, options))
                                 {
                                     try
@@ -118,7 +128,7 @@ namespace Duplicati.GUI
                                         SetupControlInterface();
 
                                         i.OperationProgress += new OperationProgressEvent(Duplicati_OperationProgress);
-                                        results = i.Backup(task.LocalPath);
+                                        results = i.Backup(sourceFolders);
                                     }
                                     finally
                                     {
@@ -182,7 +192,7 @@ namespace Duplicati.GUI
                                 if (DuplicatiProgress != null)
                                     DuplicatiProgress(DuplicatiOperation.Restore, RunnerState.Started, task.Schedule.Name, "", 0, -1);
                                 i.OperationProgress += new OperationProgressEvent(Duplicati_OperationProgress);
-                                results = i.Restore(task.LocalPath);
+                                results = i.Restore(task.LocalPath.Split(System.IO.Path.PathSeparator));
                             }
                             finally
                             {

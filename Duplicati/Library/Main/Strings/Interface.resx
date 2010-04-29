@@ -147,6 +147,9 @@
   <data name="MissingSignatureFile" xml:space="preserve">
     <value>The signature file for a content volume was missing, date: {0}, volumenumber: {1}, content volume filename: {2}</value>
   </data>
+  <data name="NoSourceFoldersError" xml:space="preserve">
+    <value>No source folders specified for backup</value>
+  </data>
   <data name="NotDeletingBackupSetMessage" xml:space="preserve">
     <value>Not deleting backup at time: {0}, because later backups depend on it</value>
   </data>

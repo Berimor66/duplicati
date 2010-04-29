@@ -23,6 +23,10 @@ using System.Text;
 
 namespace Duplicati.Library.Main
 {
+    /// <summary>
+    /// A class for keeping all Duplicati options in one place,
+    /// and provide typesafe access to the options
+    /// </summary>
     public class Options
     {
         /// <summary>
@@ -86,7 +90,9 @@ namespace Duplicati.Library.Main
                     new Backend.CommandLineArgument("max-upload-pr-second", Backend.CommandLineArgument.ArgumentType.Size, Strings.Options.MaxuploadprsecondShort, Strings.Options.MaxuploadprsecondLong),
                     new Backend.CommandLineArgument("max-download-pr-second", Backend.CommandLineArgument.ArgumentType.Size, Strings.Options.MaxdownloadprsecondShort, Strings.Options.MaxdownloadprsecondLong),
                     new Backend.CommandLineArgument("skip-files-larger-than", Backend.CommandLineArgument.ArgumentType.Size, Strings.Options.SkipfileslargerthanShort, Strings.Options.SkipfileslargerthanLong),
+                    
                     new Backend.CommandLineArgument("allow-sourcefolder-change", Backend.CommandLineArgument.ArgumentType.Boolean, Strings.Options.AllowsourcefolderchangeShort, Strings.Options.AllowsourcefolderchangeLong, "false"),
+                    new Backend.CommandLineArgument("full-if-sourcefolder-changed", Backend.CommandLineArgument.ArgumentType.Boolean, Strings.Options.FullifsourcefolderchangedShort, Strings.Options.FullifsourcefolderchangedLong, "false"),
                 });
             }
         }
@@ -203,6 +209,11 @@ namespace Duplicati.Library.Main
         /// A value indicating if the source folder is allowed to change
         /// </summary>
         public bool AllowSourceFolderChange { get { return GetBool("allow-sourcefolder-change"); } }
+
+        /// <summary>
+        /// A value indicating if the backup should be a full backup if the source folder has changed
+        /// </summary>
+        public bool FullIfSourceFolderChanged { get { return GetBool("full-if-sourcefolder-changed"); } }
 
         /// <summary>
         /// Gets a list of files to restore

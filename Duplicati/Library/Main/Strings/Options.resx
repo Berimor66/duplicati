@@ -333,4 +333,10 @@
   <data name="AllowsourcefolderchangeShort" xml:space="preserve">
     <value>Skip verifying the source folders</value>
   </data>
+  <data name="FullifsourcefolderchangedLong" xml:space="preserve">
+    <value>It is not allowed to change the sourcefolder or the number of source folders. If this option is enabled, the backup will become a full backup if the source folders have changed, which will then start a new chain of backups with the new folder set. If --allow-sourcefolder-change is also set, a full backup is only issued if the number of of source folders have changed</value>
+  </data>
+  <data name="FullifsourcefolderchangedShort" xml:space="preserve">
+    <value>Run a full backup if the sourcefolder has changed</value>
+  </data>
 </root>

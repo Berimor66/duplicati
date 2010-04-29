@@ -151,6 +151,15 @@ namespace Duplicati.Library.Main.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to No source folders specified for backup.
+        /// </summary>
+        internal static string NoSourceFoldersError {
+            get {
+                return ResourceManager.GetString("NoSourceFoldersError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Not deleting backup at time: {0}, because later backups depend on it.
         /// </summary>
         internal static string NotDeletingBackupSetMessage {

@@ -22,14 +22,14 @@ namespace Duplicati.GUI.Strings {
     [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "2.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    internal class WizardHandler {
+    internal class DynamicSetupHelper {
         
         private static global::System.Resources.ResourceManager resourceMan;
         
         private static global::System.Globalization.CultureInfo resourceCulture;
         
         [global::System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode")]
-        internal WizardHandler() {
+        internal DynamicSetupHelper() {
         }
         
         /// <summary>
@@ -39,7 +39,7 @@ namespace Duplicati.GUI.Strings {
         internal static global::System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.ReferenceEquals(resourceMan, null)) {
-                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("Duplicati.GUI.Strings.WizardHandler", typeof(WizardHandler).Assembly);
+                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("Duplicati.GUI.Strings.DynamicSetupHelper", typeof(DynamicSetupHelper).Assembly);
                     resourceMan = temp;
                 }
                 return resourceMan;
@@ -61,59 +61,11 @@ namespace Duplicati.GUI.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Duplicati is currently paused, so the backup won&apos;t run until Duplicati is resumed.
-        ///Do you want Duplicati to resume now so the backup can run immediately?.
+        ///   Looks up a localized string similar to No folders are included in the backup.
         /// </summary>
-        internal static string ResumeNowQuestion {
+        internal static string NoFoldersInSetupError {
             get {
-                return ResourceManager.GetString("ResumeNowQuestion", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The previous Duplicati setup is now restored!.
-        /// </summary>
-        internal static string SetupRestoreSuccess {
-            get {
-                return ResourceManager.GetString("SetupRestoreSuccess", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to An error occured while attempting to stop the running backup: {0}.
-        /// </summary>
-        internal static string StopBackupError {
-            get {
-                return ResourceManager.GetString("StopBackupError", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The backup you want to delete is currently running.
-        ///Do you want to stop it so the delete can proceed?.
-        /// </summary>
-        internal static string StopRunningBackupQuestion {
-            get {
-                return ResourceManager.GetString("StopRunningBackupQuestion", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Duplicati attempted to stop the backup, but did not succeed.
-        ///Press &quot;Finish&quot; to attempt the delete again..
-        /// </summary>
-        internal static string UnableToStopBackupError {
-            get {
-                return ResourceManager.GetString("UnableToStopBackupError", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Duplicati Setup Wizard.
-        /// </summary>
-        internal static string WizardFormTitle {
-            get {
-                return ResourceManager.GetString("WizardFormTitle", resourceCulture);
+                return ResourceManager.GetString("NoFoldersInSetupError", resourceCulture);
             }
         }
     }

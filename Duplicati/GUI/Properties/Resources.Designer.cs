@@ -305,6 +305,13 @@ namespace Duplicati.GUI.Properties {
             }
         }
         
+        internal static System.Drawing.Bitmap Trash {
+            get {
+                object obj = ResourceManager.GetObject("Trash", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
         internal static System.Drawing.Icon TrayNormal {
             get {
                 object obj = ResourceManager.GetObject("TrayNormal", resourceCulture);

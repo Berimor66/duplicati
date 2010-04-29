@@ -91,6 +91,9 @@ namespace Duplicati.Library.Main
             if (m_options.DontReadManifests)
                 throw new Exception(Strings.Interface.ManifestsMustBeReadOnBackups);
 
+            if (sources == null || sources.Length == 0)
+                throw new Exception(Strings.Interface.NoSourceFoldersError);
+
             //Sanity check for duplicate folders and multiple inclusions of the same folder
             for (int i = 0; i < sources.Length - 1; i++)
                 for (int j = i + 1; j < sources.Length; j++)
@@ -151,35 +154,60 @@ namespace Duplicati.Library.Main
 
                             Manifestfile latest = GetManifest(backend, backupsets[0]);
 
+                            //Manifest version 1 does not support multiple folders
+                            if (latest.Version == 1) 
+                                latest.SourceDirs = new string[] { sources[0] };
+
                             if (latest.SourceDirs.Length != sources.Length)
-                                throw new Exception(string.Format(Strings.Interface.NumberOfSourceFoldersHasChangedError, latest.SourceDirs.Length, sources.Length));
-
-                            if (!m_options.AllowSourceFolderChange)
                             {
-                                foreach (string s1 in latest.SourceDirs)
+                                if (m_options.FullIfSourceFolderChanged)
                                 {
-                                    bool found = false;
-                                    foreach (string s2 in sources)
-                                        if (s1.Equals(s2, Core.Utility.IsFSCaseSensitive ? StringComparison.CurrentCulture : StringComparison.CurrentCultureIgnoreCase))
-                                        {
-                                            found = true;
-                                            break;
-                                        }
-
-                                    if (!found)
-                                        throw new Exception(string.Format(Strings.Interface.SourceFoldersHasChangedError, s1));
+                                    Logging.Log.WriteMessage("Source folder count changed, issuing full backup", Duplicati.Library.Logging.LogMessageType.Information);
+                                    full = true;
                                 }
-
-                                manifest.SourceDirs = latest.SourceDirs;
+                                else
+                                    throw new Exception(string.Format(Strings.Interface.NumberOfSourceFoldersHasChangedError, latest.SourceDirs.Length, sources.Length));
                             }
                             else
                             {
-                                manifest.SourceDirs = sources;
-                            }
 
+                                if (!m_options.AllowSourceFolderChange)
+                                {
+                                    foreach (string s1 in latest.SourceDirs)
+                                    {
+                                        bool found = false;
+                                        foreach (string s2 in sources)
+                                            if (s1.Equals(s2, Core.Utility.IsFSCaseSensitive ? StringComparison.CurrentCulture : StringComparison.CurrentCultureIgnoreCase))
+                                            {
+                                                found = true;
+                                                break;
+                                            }
+
+                                        if (!found)
+                                        {
+                                            if (m_options.FullIfSourceFolderChanged)
+                                            {
+                                                Logging.Log.WriteMessage("Source folders changed, issuing full backup", Duplicati.Library.Logging.LogMessageType.Information);
+                                                full = true;
+                                                break; //Exit the folder loop
+                                            }
+                                            else
+                                                throw new Exception(string.Format(Strings.Interface.SourceFoldersHasChangedError, s1));
+                                        }
+                                    }
+
+                                    manifest.SourceDirs = latest.SourceDirs;
+                                }
+                                else
+                                {
+                                    manifest.SourceDirs = sources;
+                                }
+                            }
                         }
-                        else
+
+                        if (full)
                         {
+                            patches.Clear();
                             m_incrementalFraction = 0.0;
                             manifest.SourceDirs = sources;
                         }

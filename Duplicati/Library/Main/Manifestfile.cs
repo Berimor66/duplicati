@@ -42,7 +42,7 @@ namespace Duplicati.Library.Main
         {
             SignatureHashes = new List<string>();
             ContentHashes = new List<string>();
-            Version = 2;
+            Version = MaxSupportedVersion;
         }
 
         /// <summary>
@@ -110,8 +110,14 @@ namespace Duplicati.Library.Main
             if (SignatureHashes.Count == 0 || SignatureHashes.Count != ContentHashes.Count)
                 throw new Exception(string.Format(Strings.Manifestfile.WrongCountError, SignatureHashes.Count, ContentHashes.Count));
             if (paths.Count == 0)
-                throw new Exception(Strings.Manifestfile.InvalidSourcePathError);
-            this.SourceDirs = paths.ToArray();
+            {
+                if (Version == 1)
+                    this.SourceDirs = null;
+                else
+                    throw new Exception(Strings.Manifestfile.InvalidSourcePathError);
+            }
+            else
+                this.SourceDirs = paths.ToArray();
         }
 
         /// <summary>

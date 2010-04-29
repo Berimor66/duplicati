@@ -107,7 +107,7 @@ namespace Duplicati.Library.Core
                 try
                 {
                     foreach (string s in System.IO.Directory.GetDirectories(f))
-                        if (filter == null || filter.ShouldInclude(rootpath, s))
+                        if (filter == null || filter.ShouldInclude(rootpath, AppendDirSeperator(s)))
                             lst.Enqueue(s);
 
                      callback(rootpath, f, EnumeratedFileStatus.Folder);
@@ -593,6 +593,16 @@ namespace Duplicati.Library.Core
 
         //Unused function, used to create a dummy thread
         private static void DummyMethod() { }
-			
+
+        /// <summary>
+        /// Gets a string comparer that matches the client filesystems case sensitivity
+        /// </summary>
+        public static StringComparer ClientFilenameStringComparer { get { return Utility.IsFSCaseSensitive ? StringComparer.CurrentCulture : StringComparer.CurrentCultureIgnoreCase; } }
+
+        /// <summary>
+        /// Gets the string comparision that matches the client filesystems case sensitivity
+        /// </summary>
+        public static StringComparison ClientFilenameStringComparision { get { return Utility.IsFSCaseSensitive ? StringComparison.CurrentCulture : StringComparison.CurrentCultureIgnoreCase; } }
+	
     }
 }
