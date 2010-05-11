@@ -523,12 +523,30 @@ namespace Duplicati.GUI.Wizard_pages
         }
 
         /// <summary>
-        /// A cached list of filenames
+        /// A cached list of filenames in backup
         /// </summary>
         public List<string> RestoreFileList
         {
             get { return GetItem<List<string>>("RestoreFileList:" + this.RestoreTime.ToString(), null); }
             set { SetItem("RestoreFileList:" + this.RestoreTime.ToString(), value); }
+        }
+
+        /// <summary>
+        /// A cached list of filenames selected by the user
+        /// </summary>
+        public List<string> RestoreFileSelection
+        {
+            get { return GetItem<List<string>>("RestoreFileSelection:" + this.RestoreTime.ToString(), null); }
+            set { SetItem("RestoreFileSelection:" + this.RestoreTime.ToString(), value); }
+        }
+
+        /// <summary>
+        /// A list of restore targets
+        /// </summary>
+        public List<string> RestoreTargetFolders
+        {
+            get { return GetItem<List<string>>("RestoreTargetFolders:" + this.RestoreTime.ToString(), null); }
+            set { SetItem("RestoreTargetFolders:" + this.RestoreTime.ToString(), value); }
         }
 
         /// <summary>

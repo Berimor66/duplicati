@@ -163,7 +163,7 @@ namespace Duplicati.Library.Main
             ManifestEntry bestFit = backups[0];
             List<ManifestEntry> additions = new List<ManifestEntry>();
             foreach (ManifestEntry be in backups)
-                if (be.Time < timelimit)
+                if (be.Time <= timelimit)
                 {
                     bestFit = be;
                     additions.Clear();

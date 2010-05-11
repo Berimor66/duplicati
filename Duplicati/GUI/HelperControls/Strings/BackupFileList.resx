@@ -117,30 +117,10 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="CreateNewFolderWarning" xml:space="preserve">
-    <value>The folder {0} does not exist. Do you want to create it?</value>
-  </data>
-  <data name="FolderIsNotEmptyWarning" xml:space="preserve">
-    <value>The folder {0} is not empty. Do you want to use it anyway?</value>
-  </data>
-  <data name="FolderPathIsRelativeError" xml:space="preserve">
-    <value>You must enter the full path of the folder: {0}</value>
-  </data>
-  <data name="FolderValidationError" xml:space="preserve">
-    <value>An error occured while verifying the destination {0}.
-Please make sure it exists and is accessible.
-Error message: {1}</value>
-  </data>
-  <data name="NoFilesSelectedError" xml:space="preserve">
-    <value>You have not selected any files to restore.</value>
-  </data>
-  <data name="NoFolderError" xml:space="preserve">
-    <value>You must enter a folder to restore to</value>
-  </data>
-  <data name="PageDescription" xml:space="preserve">
-    <value>Please select the folder into which the backup will be restored</value>
-  </data>
-  <data name="PageTitle" xml:space="preserve">
-    <value>Select restore folder</value>
+  <data name="RootNodeTooltip" xml:space="preserve">
+    <value>Source folder {0}
+Target folder: {1}
+Right click to change target folder</value>
+    <comment>A tooltip that is displayed to assist the user in selecting target folders</comment>
   </data>
 </root>

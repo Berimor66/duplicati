@@ -99,10 +99,33 @@ namespace Duplicati.CommandLine
                 Console.WriteLine(string.Join("\r\n", Duplicati.Library.Main.Interface.List(target, options)));
             else if (source.Trim().ToLower() == "list-current-files")
             {
+                cargs.RemoveAt(0);
+
+                if (cargs.Count != 1)
+                {
+                    Console.WriteLine(Strings.Program.WrongNumberOfArgumentsError);
+                    return;
+                }
+
                 if (!EnsurePassphrase(options))
                     return;
 
                 Console.WriteLine(string.Join("\r\n", new List<string>(Duplicati.Library.Main.Interface.ListContent(target, options)).ToArray()));
+            }
+            else if (source.Trim().ToLower() == "list-source-folders")
+            {
+                cargs.RemoveAt(0);
+
+                if (cargs.Count != 1)
+                {
+                    Console.WriteLine(Strings.Program.WrongNumberOfArgumentsError);
+                    return;
+                }
+
+                if (!EnsurePassphrase(options))
+                    return;
+
+                Console.WriteLine(string.Join("\r\n", Duplicati.Library.Main.Interface.ListSourceFolders(target, options) ?? new string[0]));
             }
             else if (source.Trim().ToLower() == "list-actual-signature-files")
             {

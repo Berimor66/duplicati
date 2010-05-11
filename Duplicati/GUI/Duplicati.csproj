@@ -81,6 +81,11 @@
     <Compile Include="HelperControls\SizeSelector.Designer.cs">
       <DependentUpon>SizeSelector.cs</DependentUpon>
     </Compile>
+    <Compile Include="HelperControls\Strings\BackupFileList.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>BackupFileList.resx</DependentUpon>
+    </Compile>
     <Compile Include="HelperControls\Strings\BackupItems.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -1040,6 +1045,10 @@
     <EmbeddedResource Include="Database schema\3. Default managed SSH.sql" />
     <EmbeddedResource Include="HelperControls\FolderPathEntry.resx">
       <DependentUpon>FolderPathEntry.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="HelperControls\Strings\BackupFileList.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>BackupFileList.Designer.cs</LastGenOutput>
     </EmbeddedResource>
     <EmbeddedResource Include="HelperControls\Strings\FilterEditor.resx">
       <Generator>ResXFileCodeGenerator</Generator>

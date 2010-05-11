@@ -165,10 +165,15 @@ namespace Duplicati.GUI
                     case DuplicityTaskType.ListFiles:
                         (task as ListFilesTask).Files = Interface.ListContent(destination, options);
                         break;
+                    case DuplicityTaskType.ListSourceFolders:
+                        {
+                            string[] tmp = Interface.ListSourceFolders(destination, options);
+                            (task as ListSourceFoldersTask).Files = new List<string>(tmp ?? new string[0]);
+                        }
+                        break;
                     case DuplicityTaskType.ListActualFiles:
                         (task as ListActualFilesTask).Files = Interface.ListActualSignatureFiles(destination, options);
                         break;
-
                     case DuplicityTaskType.RemoveAllButNFull:
                         results = Interface.RemoveAllButNFull(destination, options);
                         break;
@@ -314,6 +319,15 @@ namespace Duplicati.GUI
         public IList<string> ListFiles(Schedule schedule, DateTime when)
         {
             ListFilesTask task = new ListFilesTask(schedule, when);
+            ExecuteTask(task);
+            if (task.Result.StartsWith("Error:"))
+                throw new Exception(task.Result);
+            return task.Files;
+        }
+
+        public IList<string> ListSourceFolders(Schedule schedule, DateTime when)
+        {
+            ListSourceFoldersTask task = new ListSourceFoldersTask(schedule, when);
             ExecuteTask(task);
             if (task.Result.StartsWith("Error:"))
                 throw new Exception(task.Result);

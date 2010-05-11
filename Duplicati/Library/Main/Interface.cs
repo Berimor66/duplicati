@@ -893,6 +893,34 @@ namespace Duplicati.Library.Main
             return res;
         }
 
+        public string[] ListSourceFolders()
+        {
+            SetupCommonOptions();
+            RestoreStatistics rs = new RestoreStatistics();
+
+            Core.FilenameFilter filter = m_options.Filter;
+            DateTime timelimit = m_options.RestoreTime;
+
+            if (OperationStarted != null)
+                OperationStarted(this, DuplicatiOperation.List, 0, -1, Strings.Interface.StatusStarted, "");
+
+            string[] res;
+
+            using (BackendWrapper backend = new BackendWrapper(rs, m_backend, m_options))
+            using (Core.TempFile mfile = new Duplicati.Library.Core.TempFile())
+            {
+                ManifestEntry bestFit = backend.GetBackupSet(timelimit);
+
+                backend.Get(bestFit, mfile, null);
+                res = new Manifestfile(mfile).SourceDirs;
+            }
+
+            if (OperationCompleted != null)
+                OperationCompleted(this, DuplicatiOperation.List, 100, -1, Strings.Interface.StatusCompleted, "");
+
+            return res;
+        }
+
 
         private void SetupCommonOptions()
         {
@@ -1063,6 +1091,12 @@ namespace Duplicati.Library.Main
         {
             using (Interface i = new Interface(target, options))
                 return i.ListContent();
+        }
+
+        public static string[] ListSourceFolders(string target, Dictionary<string, string> options)
+        {
+            using (Interface i = new Interface(target, options))
+                return i.ListSourceFolders();
         }
 
         public static string RemoveAllButNFull(string target, Dictionary<string, string> options)
