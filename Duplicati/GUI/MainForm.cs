@@ -50,7 +50,6 @@ namespace Duplicati.GUI
             InitializeComponent();
 
             m_trayicon = new TrayIconWrapper(this);
-
             m_trayicon.MouseClick += new MouseEventHandler(TrayIcon_MouseClick);
             m_trayicon.MouseDoubleClick += new MouseEventHandler(TrayIcon_MouseDoubleClick);
             m_trayicon.ContextMenuStrip = TrayMenu;
@@ -187,7 +186,7 @@ namespace Duplicati.GUI
 
             Program.LiveControl.Pause();
             Program.Runner.Stop();
-            Application.Exit();
+            m_trayicon.Exit();
         }
 
         private void optionsToolStripMenuItem_Click(object sender, EventArgs e)
@@ -258,7 +257,7 @@ namespace Duplicati.GUI
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             m_trayicon.Visible = false;
-            m_trayicon.Exit();
+			m_trayicon.Exit();
             Program.LiveControl.StateChanged -= new EventHandler(LiveControl_StateChanged);
             Program.WorkThread.StartingWork -= new EventHandler(WorkThread_StartingWork);
             Program.WorkThread.CompletedWork -= new EventHandler(WorkThread_CompletedWork);
@@ -313,6 +312,11 @@ namespace Duplicati.GUI
             }
 
             return false;
+        }
+
+        public void Run()
+        {
+            m_trayicon.Run();
         }
     }
 }

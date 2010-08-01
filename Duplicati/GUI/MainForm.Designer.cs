@@ -133,31 +133,34 @@
             // 
             this.DelayDuration05Menu.Image = global::Duplicati.GUI.Properties.Resources.Clock05;
             this.DelayDuration05Menu.Name = "DelayDuration05Menu";
-            this.DelayDuration05Menu.Size = new System.Drawing.Size(132, 22);
+            this.DelayDuration05Menu.Size = new System.Drawing.Size(152, 22);
             this.DelayDuration05Menu.Tag = "5m";
             this.DelayDuration05Menu.Text = "5 minutes";
+            this.DelayDuration05Menu.Click += new System.EventHandler(this.DelayDurationMenu_Click);
             // 
             // DelayDuration15Menu
             // 
             this.DelayDuration15Menu.Image = global::Duplicati.GUI.Properties.Resources.Clock15;
             this.DelayDuration15Menu.Name = "DelayDuration15Menu";
-            this.DelayDuration15Menu.Size = new System.Drawing.Size(132, 22);
+            this.DelayDuration15Menu.Size = new System.Drawing.Size(152, 22);
             this.DelayDuration15Menu.Tag = "15m";
             this.DelayDuration15Menu.Text = "15 minutes";
+            this.DelayDuration15Menu.Click += new System.EventHandler(this.DelayDurationMenu_Click);
             // 
             // DelayDuration30Menu
             // 
             this.DelayDuration30Menu.Image = global::Duplicati.GUI.Properties.Resources.Clock30;
             this.DelayDuration30Menu.Name = "DelayDuration30Menu";
-            this.DelayDuration30Menu.Size = new System.Drawing.Size(132, 22);
+            this.DelayDuration30Menu.Size = new System.Drawing.Size(152, 22);
             this.DelayDuration30Menu.Tag = "30m";
             this.DelayDuration30Menu.Text = "30 minutes";
+            this.DelayDuration30Menu.Click += new System.EventHandler(this.DelayDurationMenu_Click);
             // 
             // DelayDuration60Menu
             // 
             this.DelayDuration60Menu.Image = global::Duplicati.GUI.Properties.Resources.Clock60;
             this.DelayDuration60Menu.Name = "DelayDuration60Menu";
-            this.DelayDuration60Menu.Size = new System.Drawing.Size(132, 22);
+            this.DelayDuration60Menu.Size = new System.Drawing.Size(152, 22);
             this.DelayDuration60Menu.Tag = "1h";
             this.DelayDuration60Menu.Text = "1 hour";
             this.DelayDuration60Menu.Click += new System.EventHandler(this.DelayDurationMenu_Click);
