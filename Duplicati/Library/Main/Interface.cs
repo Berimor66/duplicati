@@ -224,16 +224,13 @@ namespace Duplicati.Library.Main
         static extern EXECUTION_STATE SetThreadExecutionState(EXECUTION_STATE esFlags);
 
         /// <summary>
-        /// ?????
+        /// This gets called whenever execution of an operation is started or stopped; it currently handles the KeepAwake option
         /// </summary>
-        private void OperationRunning(bool running)
-        {
-            EXECUTION_STATE v;
+        /// <param name="isRunning">Flag indicating execution state</param>
+        private void OperationRunning(bool isRunning)
+        {          
             if (m_options != null && m_options.KeepAwake && !Duplicati.Library.Utility.Utility.IsClientLinux)
-            {
-                v = SetThreadExecutionState(EXECUTION_STATE.ES_CONTINUOUS | (running ? EXECUTION_STATE.ES_SYSTEM_REQUIRED : 0));
-                v = v + 0;
-            }
+                SetThreadExecutionState(EXECUTION_STATE.ES_CONTINUOUS | (isRunning ? EXECUTION_STATE.ES_SYSTEM_REQUIRED : 0));
         }   
 
         /// <summary>
