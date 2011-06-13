@@ -196,7 +196,7 @@ namespace Duplicati.Library.Main
                     new CommandLineArgument("verification-level", CommandLineArgument.ArgumentType.Enumeration, Strings.Options.VerificationLevelShort, Strings.Options.VerificationLevelLong, "Manifest", null, Enum.GetNames(typeof(Duplicati.Library.Main.VerificationLevel))),
                     new CommandLineArgument("create-verification-file", CommandLineArgument.ArgumentType.Boolean, Strings.Options.CreateverificationfileShort, Strings.Options.CreateverificationfileLong, "false"),
                     new CommandLineArgument("list-verify-uploads", CommandLineArgument.ArgumentType.Boolean, Strings.Options.ListverifyuploadsShort, Strings.Options.ListverifyuploadsShort, "false"),
-                    new CommandLineArgument("keep-awake", CommandLineArgument.ArgumentType.Boolean, Strings.Options.KeepawakeShort, Strings.Options.KeepawakeShort, "true"),
+                    new CommandLineArgument("allow-sleep", CommandLineArgument.ArgumentType.Boolean, Strings.Options.AllowsleepShort, Strings.Options.AllowsleepShort, "false"),
                     
                 });
             }
@@ -641,9 +641,9 @@ namespace Duplicati.Library.Main
         public bool AsynchronousUpload { get { return GetBool("asynchronous-upload"); } }
 
         /// <summary>
-        /// A value indicating if system should be kept awake during backup
+        /// A value indicating if system is allowed to enter sleep power states during backup/restore ops (win32 only)
         /// </summary>
-        public bool KeepAwake { get { return true; /* GetBool("keep-awake"); */} }
+        public bool AllowSleep { get { return GetBool("allow-sleep"); } }
 
         /// <summary>
         /// A value indicating if use of the streaming interface is disallowed
@@ -940,19 +940,10 @@ namespace Duplicati.Library.Main
         private bool GetBool(string name)
         {
             string value;           
-/*
-            bool defaultValue = true;
-            foreach (Library.Interface.ICommandLineArgument a in SupportedCommands)
-                if (a.Name == name) 
-                {
-                    defaultValue = Utility.Utility.ParseBool(a.DefaultValue, defaultValue);
-                    break;
-                }
-*/            
             if (m_options.TryGetValue(name, out value))            
-                return Utility.Utility.ParseBool(value, true /* defaultValue*/);
+                return Utility.Utility.ParseBool(value, true);
             else
-                return false /* defaultValue*/;
+                return false;
         }
 
     }
