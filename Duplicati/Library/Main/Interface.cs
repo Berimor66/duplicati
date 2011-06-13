@@ -20,7 +20,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.Runtime.InteropServices;
+using Duplicati.Library.Utility;
 
 namespace Duplicati.Library.Main
 {
@@ -209,28 +209,18 @@ namespace Duplicati.Library.Main
         /// </summary>
         private LiveControl.LiveControl m_liveControl;
 
-        [FlagsAttribute]
-        public enum EXECUTION_STATE : uint
-        {
-            ES_AWAYMODE_REQUIRED = 0x00000040,
-            ES_CONTINUOUS = 0x80000000,
-            ES_DISPLAY_REQUIRED = 0x00000002,
-            ES_SYSTEM_REQUIRED = 0x00000001
-            // Legacy flag, should not be used.
-            // ES_USER_PRESENT = 0x00000004
-        }
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        static extern EXECUTION_STATE SetThreadExecutionState(EXECUTION_STATE esFlags);
-
         /// <summary>
-        /// This gets called whenever execution of an operation is started or stopped; it currently handles the KeepAwake option
+        /// This gets called whenever execution of an operation is started or stopped; it currently handles the AllowSleep option
         /// </summary>
         /// <param name="isRunning">Flag indicating execution state</param>
         private void OperationRunning(bool isRunning)
         {          
-            if (m_options != null && m_options.KeepAwake && !Duplicati.Library.Utility.Utility.IsClientLinux)
-                SetThreadExecutionState(EXECUTION_STATE.ES_CONTINUOUS | (isRunning ? EXECUTION_STATE.ES_SYSTEM_REQUIRED : 0));
+            if (m_options != null && m_options.AllowSleep && !Duplicati.Library.Utility.Utility.IsClientLinux)
+                try
+                {
+                    Win32.SetThreadExecutionState(Win32.EXECUTION_STATE.ES_CONTINUOUS | (isRunning ? Win32.EXECUTION_STATE.ES_SYSTEM_REQUIRED : 0));
+                }
+                catch { } //TODO: Report this somehow
         }   
 
         /// <summary>
@@ -295,8 +285,8 @@ namespace Duplicati.Library.Main
             if (m_liveControl.IsPauseRequested) 
             {
                 OperationRunning(false);
-                m_liveControl.PauseIfRequested();
-                OperationRunning(true);
+                try { m_liveControl.PauseIfRequested(); }
+                finally { OperationRunning(true); }
             }
 
             if (m_liveControl.IsStopRequested)
