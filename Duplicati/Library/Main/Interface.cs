@@ -215,7 +215,7 @@ namespace Duplicati.Library.Main
         /// <param name="isRunning">Flag indicating execution state</param>
         private void OperationRunning(bool isRunning)
         {          
-            if (m_options != null && m_options.AllowSleep && !Duplicati.Library.Utility.Utility.IsClientLinux)
+            if (m_options!=null && !m_options.AllowSleep && !Duplicati.Library.Utility.Utility.IsClientLinux)
                 try
                 {
                     Win32.SetThreadExecutionState(Win32.EXECUTION_STATE.ES_CONTINUOUS | (isRunning ? Win32.EXECUTION_STATE.ES_SYSTEM_REQUIRED : 0));
