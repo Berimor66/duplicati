@@ -40,15 +40,6 @@ namespace Duplicati.GUI.HelperControls {
 				//_col = column;
 				_ascending = ascending;
 			}
-			//public int Compare(object a, object b) {
-			//  ListViewItem.ListViewSubItem itm1 = ((ListViewItem) (_ascending ? a : b)).SubItems[_col];
-			//  ListViewItem.ListViewSubItem itm2 = ((ListViewItem) (_ascending ? b : a)).SubItems[_col];
-
-			//  if( itm1.Tag == null )
-			//    return String.Compare(itm1.Text, itm2.Text);				
-			//  else
-			//    return Convert.ToInt32((long)itm1.Tag - (long)itm2.Tag);
-			//}
 
 			#region IComparer<ListViewItem> Members
 
@@ -88,7 +79,7 @@ namespace Duplicati.GUI.HelperControls {
 		}
 
 		const int PAGE_SIZE = 800;
-		const int SORT_ASC_IMAGEINDEX = 6;
+		const int SORT_ASC_IMAGEINDEX = 2;
 
 		int currentSortingColumn = 0;
 		bool sortingOrderAsc = true;
@@ -111,16 +102,10 @@ namespace Duplicati.GUI.HelperControls {
 			currentSortingColumn = 2;
 			lvFiles.Columns[currentSortingColumn].ImageIndex = SORT_ASC_IMAGEINDEX + ( sortingOrderAsc ? 0 : 1 );
 			
-			//lvFiles.ListViewItemSorter = new ListViewItemComparer(2, true);
 			lvFilters.Items.AddRange( 
 				Filters.Select<KeyValuePair<bool, string>, ListViewItem>( f => new ListViewItem(f.Value, f.Key ? 0 :1) ).ToArray() );
 
 			StartScanThread();
-		}
-
-		void StartScanThread() {
-			lbLoading.Visible = true;
-			scanWorker.RunWorkerAsync();
 		}
 
 		ListViewItem _CreateListViewItem(ResultItem ri) {
@@ -147,48 +132,6 @@ namespace Duplicati.GUI.HelperControls {
 			ResizeColumns();
 		}
 
-		//private void UpdateFileView() {
-		//  if( _updating )
-		//    return;
-
-		//  _updating = true;
-		//  try {
-
-		//    string str = tbSearch.Text;
-
-		//    ResultItem[] subResults = _results.Where(r => r.FileName.Contains(str) || r.Ext.Contains(str) || r.Path.Contains(str)).ToArray();
-
-		//    List<ListViewItem> bin = new List<ListViewItem>();
-		//    foreach( ListViewItem lvi in lvFiles.Items ) {
-		//      if( subResults.FirstOrDefault(r => r.GetHashCode() == (int)lvi.Tag) == null )
-		//        bin.Add(lvi);
-		//    }
-		//    bin.ForEach(b => lvFiles.Items.Remove(b));
-
-
-		//    int startAt = 0; // *PAGE_SIZE;
-		//    int endAt = startAt + ( PAGE_SIZE > subResults.Count() ? subResults.Count() : PAGE_SIZE );
-		//    int currSize = lvFiles.Items.Count;
-		//    int i = startAt;
-		//    while( currSize < ( endAt - startAt ) ) {
-
-		//      if( !_ResultItemExistsInView(subResults[i]) )
-		//        lvFiles.Items.Add(_CreateListViewItem(subResults[i]));
-
-		//      i++;
-		//      currSize++;
-		//    }
-
-		//    lbTotalSize.Text = string.Empty;
-
-		//    if( !btnClearSearch.Visible )
-		//      btnClearSearch.Visible = true;
-
-		//    SetupPager(subResults);
-		//  } finally {
-		//    _updating = false;
-		//  }
-		//}
 		private void UpdateFileView() {
 			if( _updating )
 				return;
@@ -227,15 +170,6 @@ namespace Duplicati.GUI.HelperControls {
 				_updating = false;
 			}
 		}
-
-		//private bool _ResultItemExistsInView(ResultItem ri) {
-		//  foreach( ListViewItem lvi in lvFiles.Items ) {
-		//    if( ri.GetHashCode() == (int)lvi.Tag )
-		//      return true;
-		//  }
-		//  return false;
-		//}
-
 
 		private void DoTestSearchSelection() {
 
@@ -293,10 +227,37 @@ namespace Duplicati.GUI.HelperControls {
 			return string.IsNullOrEmpty(ext) ? string.Empty : ext.Substring(1);
 		}
 		private void ResizeColumns() {
+			//lvFiles.AutoResizeColumn(1, ColumnHeaderAutoResizeStyle.ColumnContent);
+			//lvFiles.AutoResizeColumn(2, ColumnHeaderAutoResizeStyle.ColumnContent);
 			lvFiles.AutoResizeColumn(3, ColumnHeaderAutoResizeStyle.ColumnContent);
-			//chPath.Width = -2;
 		}
 
+		private ResultItem GetResultItem(int index) {
+			if( _subResults == null ) {
+				if( index < _results.Count )
+					return _results[index];
+
+			} else if( index < _subResults.Count )
+				return _subResults[index];
+
+			return null;
+		}
+		private List<ResultItem> GetResultList() {
+			if( _subResults == null )
+				return _results;
+			else return _subResults;
+		}
+		private void ClearFileCache() {
+			for( int i = 0;i < _cache.Length;i++ )
+				_cache[i] = null;
+		}
+		private void SortView(ResultItemSortBy sortBy, bool sortDirectionAsc) {
+			ClearFileCache();
+
+			GetResultList().Sort(new ResultItemComparer(sortBy, sortDirectionAsc));
+
+			lvFiles.Invalidate();
+		}
 
 		bool ExtractLastDirectory(StringBuilder path, StringBuilder dest) {
 			if( path.Length == 0 )
@@ -338,7 +299,7 @@ namespace Duplicati.GUI.HelperControls {
 				StartScanThread();
 			}
 		}
-
+		
 		// Exclude FileName
 		private void addFilenameFilterToolStripMenuItem_Click(object sender, EventArgs e) {
 			_AddSelectedFilter(false, false);
@@ -390,6 +351,13 @@ namespace Duplicati.GUI.HelperControls {
 		}
 
 
+		void StartScanThread() {
+			lbLoading.Visible = true;
+			tbSearch.Enabled = false;
+			lvFiles.Enabled = false;
+			lvFilters.Enabled = false;
+			scanWorker.RunWorkerAsync();
+		}
 		private void scanWorker_DoWork(object sender, DoWorkEventArgs e) {
 			if( _results.Count == 0 )
 				DoTestSearchSelection();
@@ -397,6 +365,9 @@ namespace Duplicati.GUI.HelperControls {
 		}
 		private void scanWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e) {
 			lbLoading.Visible = false;
+			tbSearch.Enabled = true;
+			lvFiles.Enabled = true;
+			lvFilters.Enabled = true;
 		
 			LoadFileView();
 			SortView((ResultItemSortBy)currentSortingColumn, true);
@@ -408,13 +379,15 @@ namespace Duplicati.GUI.HelperControls {
 
 			StartScanThread();
 		}
-		private void lvFiles2_ColumnClick(object sender, ColumnClickEventArgs e) {
+		private void lvFiles_ColumnClick(object sender, ColumnClickEventArgs e) {
 			if( currentSortingColumn != e.Column )
 				sortingOrderAsc = true;
 			else sortingOrderAsc = !sortingOrderAsc;
 
-			if( currentSortingColumn != -1 )
-				lvFiles.Columns[currentSortingColumn].ImageKey = string.Empty;
+			if( currentSortingColumn != -1 ) {
+				lvFiles.Columns[currentSortingColumn].ImageIndex = -1;
+				lvFiles.Columns[currentSortingColumn].TextAlign = HorizontalAlignment.Left;
+			}
 
 			lvFiles.Columns[e.Column].ImageIndex = SORT_ASC_IMAGEINDEX + ( sortingOrderAsc ? 0 : 1 );
 
@@ -442,35 +415,7 @@ namespace Duplicati.GUI.HelperControls {
 			Close();
 		}
 
-		private void tbSearch_TextChanged(object sender, EventArgs e) {
-		}
-
-		private void btnClearSearch_Click(object sender, EventArgs e) {
-			tbSearch.Text = string.Empty;
-			_subResults = null;
-			LoadFileView();
-			btnClearSearch.Visible = false;
-		}
-
-
-		private ResultItem GetResultItem(int index) {
-			if( _subResults == null ) {
-				if( index < _results.Count )
-					return _results[index];
-			
-			} else if( index < _subResults.Count  )
-				return _subResults[index];
-
-			return null;
-		}
-		private List<ResultItem> GetResultList() {
-			if( _subResults == null )
-				return _results;
-			else return _subResults;
-		}
-
-
-		private void lvFiles2_RetrieveVirtualItem(object sender, RetrieveVirtualItemEventArgs e) {
+		private void lvFiles_RetrieveVirtualItem(object sender, RetrieveVirtualItemEventArgs e) {
 
 			ListViewItem itm = e.ItemIndex < _cache.Length ? _cache[e.ItemIndex] : null;
 			if( itm == null ) {
@@ -480,13 +425,11 @@ namespace Duplicati.GUI.HelperControls {
 			}
 			e.Item = itm;
 		}
-
-		private void lvFiles2_CacheVirtualItems(object sender, CacheVirtualItemsEventArgs e) {
+		private void lvFiles_CacheVirtualItems(object sender, CacheVirtualItemsEventArgs e) {
 
 			if( _cache.Length > 0 ) {
 				
 				int length = e.EndIndex - e.StartIndex + 1;
-				//_cache = new ListViewItem[length];
 
 				for( int i = e.StartIndex;i < length;i++ ) {
 					if( _cache[i] == null )
@@ -494,28 +437,16 @@ namespace Duplicati.GUI.HelperControls {
 				}
 			}
 		}
-
-
-		private void tbSearch_Leave(object sender, EventArgs e) {
+		private void tbSearch_TextChanged(object sender, EventArgs e) {
 			UpdateFileView();
 		}
-
-		private void ClearFileCache() {
-			for( int i = 0;i < _cache.Length;i++ )
-				_cache[i] = null;
+		private void btnClearSearch_Click(object sender, EventArgs e) {
+			tbSearch.Text = string.Empty;
+			_subResults = null;
+			LoadFileView();
+			btnClearSearch.Visible = false;
 		}
 
-		void SortView(ResultItemSortBy sortBy, bool sortDirectionAsc) {
-			ClearFileCache();
-
-			GetResultList().Sort(new ResultItemComparer(sortBy, sortDirectionAsc));
-			
-			lvFiles.Invalidate();
-		}
-
-		private void btnSearch_Click(object sender, EventArgs e) {
-			UpdateFileView();
-		}
 
 
 	}

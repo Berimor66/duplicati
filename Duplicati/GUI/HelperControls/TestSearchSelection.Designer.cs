@@ -51,10 +51,10 @@ namespace Duplicati.GUI.HelperControls {
 			this.btnSearch = new System.Windows.Forms.PictureBox();
 			this.btnClearSearch = new System.Windows.Forms.PictureBox();
 			this.lvFiles = new System.Windows.Forms.ListView();
-			this.columnHeader1 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
-			this.columnHeader2 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
-			this.columnHeader3 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
-			this.columnHeader4 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+			this.chFile = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+			this.chFileExt = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+			this.chSize = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+			this.chPath = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
 			this.lbLoading = new System.Windows.Forms.Label();
 			this.ctxSelection.SuspendLayout();
 			this.ctxFilters.SuspendLayout();
@@ -234,30 +234,28 @@ namespace Duplicati.GUI.HelperControls {
 			// tbSearch
 			// 
 			this.tbSearch.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.tbSearch.Location = new System.Drawing.Point(292, 4);
+			this.tbSearch.Location = new System.Drawing.Point(321, 4);
 			this.tbSearch.Name = "tbSearch";
 			this.tbSearch.Size = new System.Drawing.Size(156, 20);
 			this.tbSearch.TabIndex = 13;
 			this.tbSearch.TextChanged += new System.EventHandler(this.tbSearch_TextChanged);
-			this.tbSearch.Leave += new System.EventHandler(this.tbSearch_Leave);
 			// 
 			// btnSearch
 			// 
 			this.btnSearch.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
 			this.btnSearch.Image = ((System.Drawing.Image)(resources.GetObject("btnSearch.Image")));
-			this.btnSearch.Location = new System.Drawing.Point(451, 3);
+			this.btnSearch.Location = new System.Drawing.Point(291, 1);
 			this.btnSearch.Name = "btnSearch";
 			this.btnSearch.Size = new System.Drawing.Size(25, 25);
 			this.btnSearch.TabIndex = 14;
 			this.btnSearch.TabStop = false;
-			this.btnSearch.Click += new System.EventHandler(this.btnSearch_Click);
 			// 
 			// btnClearSearch
 			// 
 			this.btnClearSearch.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
 			this.btnClearSearch.BackColor = System.Drawing.SystemColors.Window;
 			this.btnClearSearch.Image = ((System.Drawing.Image)(resources.GetObject("btnClearSearch.Image")));
-			this.btnClearSearch.Location = new System.Drawing.Point(429, 6);
+			this.btnClearSearch.Location = new System.Drawing.Point(458, 6);
 			this.btnClearSearch.Name = "btnClearSearch";
 			this.btnClearSearch.Size = new System.Drawing.Size(16, 16);
 			this.btnClearSearch.TabIndex = 15;
@@ -271,13 +269,13 @@ namespace Duplicati.GUI.HelperControls {
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
 			this.lvFiles.Columns.AddRange(new System.Windows.Forms.ColumnHeader[] {
-            this.columnHeader1,
-            this.columnHeader2,
-            this.columnHeader3,
-            this.columnHeader4});
+            this.chFile,
+            this.chFileExt,
+            this.chSize,
+            this.chPath});
 			this.lvFiles.ContextMenuStrip = this.ctxSelection;
 			this.lvFiles.FullRowSelect = true;
-			this.lvFiles.Location = new System.Drawing.Point(15, 30);
+			this.lvFiles.Location = new System.Drawing.Point(15, 32);
 			this.lvFiles.Name = "lvFiles";
 			this.lvFiles.Size = new System.Drawing.Size(462, 205);
 			this.lvFiles.SmallImageList = this.imageList;
@@ -285,62 +283,64 @@ namespace Duplicati.GUI.HelperControls {
 			this.lvFiles.UseCompatibleStateImageBehavior = false;
 			this.lvFiles.View = System.Windows.Forms.View.Details;
 			this.lvFiles.VirtualMode = true;
-			this.lvFiles.CacheVirtualItems += new System.Windows.Forms.CacheVirtualItemsEventHandler(this.lvFiles2_CacheVirtualItems);
-			this.lvFiles.ColumnClick += new System.Windows.Forms.ColumnClickEventHandler(this.lvFiles2_ColumnClick);
-			this.lvFiles.RetrieveVirtualItem += new System.Windows.Forms.RetrieveVirtualItemEventHandler(this.lvFiles2_RetrieveVirtualItem);
+			this.lvFiles.CacheVirtualItems += new System.Windows.Forms.CacheVirtualItemsEventHandler(this.lvFiles_CacheVirtualItems);
+			this.lvFiles.ColumnClick += new System.Windows.Forms.ColumnClickEventHandler(this.lvFiles_ColumnClick);
+			this.lvFiles.RetrieveVirtualItem += new System.Windows.Forms.RetrieveVirtualItemEventHandler(this.lvFiles_RetrieveVirtualItem);
 			// 
-			// columnHeader1
+			// chFile
 			// 
-			this.columnHeader1.Text = "Filename";
-			this.columnHeader1.Width = 116;
+			this.chFile.Text = "Filename";
+			this.chFile.Width = 116;
 			// 
-			// columnHeader2
+			// chFileExt
 			// 
-			this.columnHeader2.Text = "Ext";
-			this.columnHeader2.Width = 47;
+			this.chFileExt.Text = "Ext";
+			this.chFileExt.Width = 47;
 			// 
-			// columnHeader3
+			// chSize
 			// 
-			this.columnHeader3.Text = "Size";
-			this.columnHeader3.Width = 76;
+			this.chSize.Text = "Size";
+			this.chSize.Width = 76;
 			// 
-			// columnHeader4
+			// chPath
 			// 
-			this.columnHeader4.Text = "Path";
-			this.columnHeader4.Width = 192;
+			this.chPath.Text = "Path";
+			this.chPath.Width = 192;
 			// 
 			// lbLoading
 			// 
 			this.lbLoading.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-			this.lbLoading.BackColor = System.Drawing.SystemColors.Window;
+			this.lbLoading.BackColor = System.Drawing.SystemColors.Control;
 			this.lbLoading.Font = new System.Drawing.Font("Microsoft Sans Serif", 15.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
 			this.lbLoading.Location = new System.Drawing.Point(28, 98);
 			this.lbLoading.Name = "lbLoading";
-			this.lbLoading.Size = new System.Drawing.Size(435, 36);
+			this.lbLoading.Size = new System.Drawing.Size(427, 36);
 			this.lbLoading.TabIndex = 17;
-			this.lbLoading.Text = "Scaning files, please wait....";
+			this.lbLoading.Text = "Scanning files, please wait....";
 			this.lbLoading.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
 			// 
 			// dlgTestSearchSelection
 			// 
+			this.AcceptButton = this.btnClose;
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+			this.CancelButton = this.btnClose;
 			this.ClientSize = new System.Drawing.Size(486, 453);
 			this.Controls.Add(this.lbLoading);
-			this.Controls.Add(this.lvFiles);
-			this.Controls.Add(this.btnClearSearch);
-			this.Controls.Add(this.btnSearch);
-			this.Controls.Add(this.tbSearch);
 			this.Controls.Add(this.label3);
+			this.Controls.Add(this.btnClearSearch);
+			this.Controls.Add(this.lvFiles);
 			this.Controls.Add(this.lvFilters);
+			this.Controls.Add(this.btnSearch);
 			this.Controls.Add(this.label2);
+			this.Controls.Add(this.tbSearch);
 			this.Controls.Add(this.lbTotalSize);
 			this.Controls.Add(this.label1);
 			this.Controls.Add(this.btnClose);
 			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
-			this.MaximizeBox = false;
 			this.MinimizeBox = false;
+			this.MinimumSize = new System.Drawing.Size(400, 400);
 			this.Name = "dlgTestSearchSelection";
 			this.ShowInTaskbar = false;
 			this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Show;
@@ -381,10 +381,10 @@ namespace Duplicati.GUI.HelperControls {
 		private System.Windows.Forms.PictureBox btnSearch;
 		private System.Windows.Forms.PictureBox btnClearSearch;
 		private System.Windows.Forms.ListView lvFiles;
-		private System.Windows.Forms.ColumnHeader columnHeader1;
-		private System.Windows.Forms.ColumnHeader columnHeader2;
-		private System.Windows.Forms.ColumnHeader columnHeader3;
-		private System.Windows.Forms.ColumnHeader columnHeader4;
+		private System.Windows.Forms.ColumnHeader chFile;
+		private System.Windows.Forms.ColumnHeader chFileExt;
+		private System.Windows.Forms.ColumnHeader chSize;
+		private System.Windows.Forms.ColumnHeader chPath;
 		private System.Windows.Forms.Label lbLoading;
 	}
 }
