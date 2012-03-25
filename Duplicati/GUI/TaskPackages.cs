@@ -198,6 +198,9 @@ namespace Duplicati.GUI
             if (!string.IsNullOrEmpty(this.Task.EncryptionModule))
                 options["encryption-module"] = this.Task.EncryptionModule;
 
+            if (!string.IsNullOrEmpty(this.Task.CompressionModule))
+                options["compression-module"] = this.Task.CompressionModule;
+
             if (string.IsNullOrEmpty(this.Task.Encryptionkey))
                 options.Add("no-encryption", "");
             else

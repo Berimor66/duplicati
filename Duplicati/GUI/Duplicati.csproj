@@ -331,6 +331,12 @@
     <Compile Include="HelperControls\FilterDialog.Designer.cs">
       <DependentUpon>FilterDialog.cs</DependentUpon>
     </Compile>
+    <Compile Include="Wizard pages\Add backup\CompressionSettings.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Wizard pages\Add backup\CompressionSettings.Designer.cs">
+      <DependentUpon>CompressionSettings.cs</DependentUpon>
+    </Compile>
     <Compile Include="Wizard pages\Add backup\EditFilters.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -359,6 +365,11 @@
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>AdvancedOptions.resx</DependentUpon>
+    </Compile>
+    <Compile Include="Wizard pages\Add backup\Strings\CompressionSettings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>CompressionSettings.resx</DependentUpon>
     </Compile>
     <Compile Include="Wizard pages\Add backup\Strings\EditFilters.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -1137,6 +1148,15 @@
     <EmbeddedResource Include="Strings\TrayIconWrapper.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>TrayIconWrapper.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Wizard pages\Add backup\CompressionSettings.resx">
+      <DependentUpon>CompressionSettings.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Wizard pages\Add backup\Strings\CompressionSettings.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>CompressionSettings.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Wizard pages\Backends\RawContainer.resx">
       <DependentUpon>RawContainer.cs</DependentUpon>

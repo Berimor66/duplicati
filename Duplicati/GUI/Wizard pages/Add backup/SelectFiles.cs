@@ -196,7 +196,7 @@ namespace Duplicati.GUI.Wizard_pages.Add_backup
 
             StopCalculator();
 
-            args.NextPage = new PasswordSettings();
+            args.NextPage = new CompressionSettings();
         }
 
         private void UpgradeFromVersionOne()

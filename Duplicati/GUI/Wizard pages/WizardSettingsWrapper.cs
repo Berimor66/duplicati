@@ -123,6 +123,8 @@ namespace Duplicati.GUI.Wizard_pages
             this.EncodedFilterXml = schedule.Task.FilterXml;
             this.BackupPassword = schedule.Task.Encryptionkey;
 
+            this.CompressionModule = schedule.Task.CompressionModule;
+
             this.Backend = schedule.Task.Service;
             this.BackendSettings = new Dictionary<string, string>(schedule.Task.BackendSettingsLookup); 
 
@@ -184,6 +186,8 @@ namespace Duplicati.GUI.Wizard_pages
             schedule.Task.SourcePath = this.SourcePath;
             schedule.Task.FilterXml = this.EncodedFilterXml;
             schedule.Task.Encryptionkey = this.BackupPassword;
+
+            schedule.Task.CompressionModule = this.CompressionModule;
 
             schedule.Task.Service = this.Backend;
             SyncLookupTables(this.BackendSettings, schedule.Task.BackendSettingsLookup);

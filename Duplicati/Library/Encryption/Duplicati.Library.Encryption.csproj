@@ -64,6 +64,7 @@
   <ItemGroup>
     <Compile Include="AESEncryption.cs" />
     <Compile Include="CryptoStreamWrapper.cs" />
+    <Compile Include="SevenZipEncryption.cs" />
     <Compile Include="EncryptionBase.cs" />
     <Compile Include="GPGCommonOptions.cs">
       <SubType>UserControl</SubType>
@@ -80,6 +81,11 @@
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>AESEncryption.resx</DependentUpon>
+    </Compile>
+    <Compile Include="Strings\SevenZipEncryption.Designer.cs">
+      <DependentUpon>SevenZipEncryption.resx</DependentUpon>
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
     </Compile>
     <Compile Include="Strings\EncryptionBase.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -129,6 +135,11 @@
       <SubType>Designer</SubType>
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>AESEncryption.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Strings\SevenZipEncryption.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>SevenZipEncryption.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Strings\EncryptionBase.resx">
       <SubType>Designer</SubType>
