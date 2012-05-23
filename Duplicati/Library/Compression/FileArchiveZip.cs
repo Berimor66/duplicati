@@ -20,17 +20,39 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using Duplicati.Library.Interface;
-using SharpCompress.Archive;
-using SharpCompress.Archive.Zip;
 using System.Linq;
 using SharpCompress.Common;
 using SharpCompress.Reader;
 using SharpCompress.Writer;
 
-//The compile flag SHARPZIPLIBWORKS can be set if #ZipLib is able to update archives without corrupting them
 
+/*
+1) The filename should not be a read-write property IMO. 
+	- HUH?
+2) I am a bit worried that you keep all compressed streams in memory, why not write them to the archive as you go? Optionally when they are closed/disposed?
+	- TODO Once working
+3) The size is used to determine when to create a new volume. Apart from the size of streams, there is also a "Central Header" which is a list if filenames and offsets. It takes 46 + 24 + len(filename in encoding) pr. entry. It is fairly important that the size calculation is correct as some providers have a strict max-filesize. The current implementation does not capture this overhead 100% correctly, so I have added a 1200 bytes grace margin.
+	- TODO
+4) I could have sworn directories were used :). But that was perhaps in an earlier version. I originally used the ICompression interface for debugging, so I could switch to a folder instead of a Zip file for output. But lets remove those methods from the interface if it is not used.
+	- Done
+5) The "missing date" should be either EPOCH or "01/01/0000 00:00:00", Duplicati uses the timestamp to determine if the file should be checked for changes, setting it to "Now", means that the file is probably older than "Now" and will not be checked. I think I have used "new DateTime(0)" somewhere.
+	- Done (Using DateTime.Min)
+6) You use a bit of .Net 4.0 syntax, this means that we cannot port the changes directly to the 1.3.x branch as that is .Net 2.0. Not sure this is a problem though.
+	- Ignore or solve? Need to ask which part
+7) The lookup of filenames should calculate the "normalized" version of the name outside the Linq query, otherwise it is translated for each compare.
+	- TODO
+8) I prefer if there is both a license.txt and download.txt file in each of the 3rd party folders, just to make sure we have actually considered license implications. But as they are not distributed, maybe that is not really important.
+	- TODO
+9) I checked the SharpCompress source, and they use UTF-8 all over, so we are good on that.
+	- TODO  
+ */
+
+
+
+//ZIP Implementation using SharpCompress
+//Please note, duplicati does not require both Read & Write access at the same time
+//and so this has not been implemented
 namespace Duplicati.Library.Compression
 {
     /// <summary>
@@ -78,7 +100,6 @@ namespace Duplicati.Library.Compression
             ZipStreams = new List<CompressionEntity>();
 
             //TODO: Set compression level, maybe on saving?
-
             //if (options.TryGetValue(COMPRESSION_LEVEL_OPTION, out cplvl) && int.TryParse(cplvl, out tmplvl))
             //    compressionLevel = Math.Max(Math.Min(9, tmplvl), 0);
 
@@ -166,18 +187,6 @@ namespace Duplicati.Library.Compression
         public string[] ListFiles(string prefix)
         {
             return FilterEntries(prefix).ToArray();
-        }
-
-
-        /// <summary>
-        /// Returns a list of folders matching the given prefix
-        /// Directories are not stored seperately. Can be implemented but nothing uses this
-        /// </summary>
-        /// <param name="prefix">The prefix to match</param>
-        /// <returns>A list of folders matching the prefix</returns>
-        public string[] ListDirectories(string prefix)
-        {
-            return new string[0];
         }
 
         /// <summary>
@@ -331,26 +340,6 @@ namespace Duplicati.Library.Compression
         }
 
         /// <summary>
-        /// Deletes a folder from the archive
-        /// </summary>
-        /// <param name="file">The name of the folder to delete</param>
-        public void DeleteDirectory(string file)
-        {
-            //TODO: Implement deleting of directories
-            throw new MissingMethodException(Strings.FileArchiveZip.DeleteUnsupportedError);
-        }
-
-        /// <summary>
-        /// Adds a folder to the archive
-        /// </summary>
-        /// <param name="file">The name of the folder to create</param>
-        public void AddDirectory(string file)
-        {
-            //TODO: Implement adding of directories
-            throw new MissingMethodException(Strings.FileArchiveZip.DeleteUnsupportedError);
-        }
-
-        /// <summary>
         /// Returns a value that indicates if the file exists
         /// </summary>
         /// <param name="file">The name of the file to test existence for</param>
@@ -358,17 +347,6 @@ namespace Duplicati.Library.Compression
         public bool FileExists(string file)
         {
             return GetEntry(file) != null;
-        }
-
-        /// <summary>
-        /// Returns a value that indicates if the folder exists
-        /// </summary>
-        /// <param name="file">The name of the folder to test existence for</param>
-        /// <returns>True if the folder exists, false otherwise</returns>
-        public bool DirectoryExists(string file)
-        {
-            //TODO: Currently not in use
-            return false;
         }
 
         /// <summary>
@@ -391,7 +369,7 @@ namespace Duplicati.Library.Compression
             if (entry != null)
             {
                 var lastModified = entry.LastModified;
-                return lastModified ?? DateTime.Now; //TODO: Is this ok?
+                return lastModified ?? DateTime.MinValue; //TODO: Is this ok?
             }
             else
                 throw new Exception(string.Format(Strings.FileArchiveZip.FileNotFoundError, file));
@@ -426,6 +404,10 @@ namespace Duplicati.Library.Compression
                     }
                 }
             }
+
+            if(ZipStreams != null)
+                foreach (var entity in ZipStreams)
+                    entity.Dispose();
         }
 
         #endregion
