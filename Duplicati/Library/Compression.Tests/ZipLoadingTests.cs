@@ -23,7 +23,7 @@ namespace Duplicati.Library.Compression.Tests
 
                 public static IDictionary<string, Files> GetFileInfo(bool includeFolder)
                 {
-                    var prefix = includeFolder ? "Tests/" : string.Empty;
+                    var prefix = includeFolder ? @"Tests\" : string.Empty;
                     return new Dictionary<string, Files>
                         {
                             {prefix + "File1_Picture.jpg", new Files{Hash = "54-C2-F1-A1-EB-6F-12-D6-81-A5-C7-07-84-21-A5-50-0C-EE-02-AD", Size = 620888}},

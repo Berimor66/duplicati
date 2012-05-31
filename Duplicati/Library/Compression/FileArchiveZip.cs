@@ -28,6 +28,11 @@ using SharpCompress.Writer;
 
 
 /*
+ 
+ *  Current Problems. TODO: Size and FlushBuffer size need to worked out correctly otherwise Duplicati has no idea how big the output is.
+ 
+ * 
+ 
 1) The filename should not be a read-write property IMO. 
 	- HUH?
 2) I am a bit worried that you keep all compressed streams in memory, why not write them to the archive as you go? Optionally when they are closed/disposed?
@@ -176,7 +181,7 @@ namespace Duplicati.Library.Compression
             return
                 ZipStreams
                     .Where(x => prefix == null || x.FilePath.StartsWith(prefix))
-                            .Select(x => x.FilePath);
+                            .Select(x => PathToOsFilesystem(x.FilePath));
         }
 
         /// <summary>
@@ -382,7 +387,7 @@ namespace Duplicati.Library.Compression
         {
             get
             {
-                return ZipStreams.Sum(stm => stm.CompressionStream.Length);
+                return 0;
             }
         }
 
@@ -392,6 +397,8 @@ namespace Duplicati.Library.Compression
 
         public void Dispose()
         {
+            if (ZipStreams == null || ZipStreams.Count < 1) return;
+
             using (var zip = File.OpenWrite(FileName))
             {
                 //TODO: This can be replaced easily with LZMA
@@ -405,9 +412,8 @@ namespace Duplicati.Library.Compression
                 }
             }
 
-            if(ZipStreams != null)
-                foreach (var entity in ZipStreams)
-                    entity.Dispose();
+            foreach (var entity in ZipStreams)
+                entity.Dispose();
         }
 
         #endregion
