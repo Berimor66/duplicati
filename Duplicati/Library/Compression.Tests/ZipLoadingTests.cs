@@ -105,7 +105,7 @@ namespace Duplicati.Library.Compression.Tests
         }
 
         [TestFixture]
-        public class WhenTestingTestReadingFileOne : given.test_zip_reading_file_one
+        public class when_testing_test_reading_file_one : given.test_zip_reading_file_one
         {
             [Test]
             public void then_should_contain_four_files()
@@ -124,7 +124,8 @@ namespace Duplicati.Library.Compression.Tests
             {
                 foreach (var file in SUT.ListFiles(string.Empty))
                 {
-                    SUT.OpenRead(file).Length.ShouldEqual(ExpectedFiles[file].Size);
+                    using (var openRead = SUT.OpenRead(file))
+                        openRead.Length.ShouldEqual(ExpectedFiles[file].Size);
                 }
             }
 

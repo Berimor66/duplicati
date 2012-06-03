@@ -110,7 +110,7 @@ namespace Duplicati.Library.Compression
 
             if (File.Exists(file) && new FileInfo(file).Length > 0)
             {
-                using (Stream stream = File.OpenRead(file))
+                using (var stream = File.OpenRead(file))
                 using (var reader = ReaderFactory.Open(stream))
                     ReadZipIntoMemory(reader);
             }
@@ -121,8 +121,53 @@ namespace Duplicati.Library.Compression
             while (reader.MoveToNextEntry())
             {
                 if (!reader.Entry.IsDirectory)
-                        ZipStreams.Add(new CompressionEntity(reader.Entry, reader.OpenEntryStream()));
+                {
+                    var entity = new CompressionEntity(reader.Entry);
+                    SetupEntityEvents(entity);
+
+                    ZipStreams.Add(entity);
+                }
             }
+        }
+
+        private void SetupEntityEvents(CompressionEntity entity)
+        {
+            entity.StreamDisposing += EntityStreamStreamDisposing;
+            entity.RequiresStream += EntityRequiresStream;
+        }
+
+        private MemoryStream EntityRequiresStream(CompressionEntity sender)
+        {
+            var rtnStream = new MemoryStream();
+
+            using (var stream = File.OpenRead(FileName))
+            using (var reader = ReaderFactory.Open(stream))
+            {
+                Stream foundStream = null;
+
+                while (reader.MoveToNextEntry())
+                {
+                    if (reader.Entry.FilePath != sender.FilePath) continue;
+
+                    foundStream = reader.OpenEntryStream();
+                    break;
+                }
+
+
+                if (foundStream != null)
+                {
+                    using (foundStream)
+                        Utility.Utility.CopyStream(foundStream, rtnStream);
+                }
+            }
+            
+            return rtnStream;
+        }
+
+        private void EntityStreamStreamDisposing(CompressionEntity sender)
+        {
+            //TODO: Write stream to file on disposing of each individual stream so we are no longer storing streams in memory for long periods
+            throw new NotImplementedException();
         }
 
         /// <summary>
@@ -243,7 +288,7 @@ namespace Duplicati.Library.Compression
         {
             var ze = GetEntry(file);
 
-            return ze == null ? null : new StreamWrapper2(ze.CompressionStream);
+            return ze == null ? null : ze.CompressionStream;
         }
 
         /// <summary>
@@ -330,7 +375,7 @@ namespace Duplicati.Library.Compression
             //Encode filenames as unicode, we do this for all files, to avoid codepage issues
             //ze.Flags |= (int)ICSharpCode.SharpZipLib.Zip.GeneralBitFlags.UnicodeText;
 
-            return new StreamWrapper2(GetFileStream(file, lastWrite));
+            return new StreamWrapper(GetFileStream(file, lastWrite));
         }
 
         private Stream GetFileStream(string file, DateTime lastWrite)
@@ -340,6 +385,8 @@ namespace Duplicati.Library.Compression
                 return entry.CompressionStream;
 
             var newEntry = new CompressionEntity(PathToZipFilesystem(file), lastWrite);
+            SetupEntityEvents(newEntry);
+
             ZipStreams.Add(newEntry);
             return newEntry.CompressionStream;
         }
@@ -372,10 +419,7 @@ namespace Duplicati.Library.Compression
         {
             var entry = GetEntry(file);
             if (entry != null)
-            {
-                var lastModified = entry.LastModified;
-                return lastModified ?? DateTime.MinValue; //TODO: Is this ok?
-            }
+                return entry.LastModified; //TODO: Is this ok?
             else
                 throw new Exception(string.Format(Strings.FileArchiveZip.FileNotFoundError, file));
         }
@@ -421,52 +465,84 @@ namespace Duplicati.Library.Compression
         /// <summary>
         /// CompressionStream wrapper to prevent closing the base stream when disposing the entry stream
         /// </summary>
-        private class StreamWrapper2 : Utility.OverrideableStream
+        private class StreamWrapper : Utility.OverrideableStream
         {
-            public StreamWrapper2(System.IO.Stream stream)
+            public delegate void DisposingHandler(StreamWrapper sender);
+
+            public event DisposingHandler Disposing;
+
+            public StreamWrapper(Stream stream)
                 : base(stream)
             {
             }
 
             protected override void Dispose(bool disposing)
             {
+                if (Disposing != null)
+                    Disposing(this);
             }
         }
 
         private class CompressionEntity : IDisposable
         {
-            private MemoryStream stream { get; set; }
+            #region Events
 
-            public Stream CompressionStream
+            public delegate MemoryStream CompressionEntityHandler(CompressionEntity sender);
+            public event CompressionEntityHandler RequiresStream;
+
+            public delegate void DisposingHandler(CompressionEntity sender);
+            public event DisposingHandler StreamDisposing;
+            #endregion
+
+            #region Properties
+
+            private StreamWrapper stream { get; set; }
+            public StreamWrapper CompressionStream
             {
-                get 
-                { 
-                    ResetStream();
+                get
+                {
+                    //Lazy loading style. Let the host setup our stream
+                    //This allows us to pick up a stream only when we need it
+                    if (stream == null && RequiresStream != null)
+                    {
+                        stream = new StreamWrapper(RequiresStream(this));
+                        stream.Disposing += StreamIsDisposing;
+                    }
+
                     return stream;
                 }
+                set
+                {
+                    stream = value;
+                    ResetStream();
+                }
             }
+            #endregion
 
             public string FilePath { get; private set; }
-            public DateTime? LastModified { get; private set; }
+            public DateTime LastModified { get; private set; }
 
-            public CompressionEntity(IEntry entry, Stream entryStream)
+            public CompressionEntity(IEntry entry)
             {
-                stream = new MemoryStream();
-
-                using (entryStream)
-                    Utility.Utility.CopyStream(entryStream, stream);
-
                 FilePath = entry.FilePath;
-                LastModified = entry.LastModifiedTime;
-
-                ResetStream();
+                SetLastModified(entry.LastModifiedTime);
             }
 
             public CompressionEntity(string filePath, DateTime? lastModified)
             {
-                stream = new MemoryStream();
                 FilePath = filePath;
-                LastModified = lastModified;
+                SetLastModified(lastModified);
+            }
+
+            private void SetLastModified(DateTime? lastModified)
+            {
+                LastModified = lastModified.HasValue ? lastModified.Value : DateTime.MinValue;
+            }
+
+            private void StreamIsDisposing(StreamWrapper sender)
+            {
+                if (StreamDisposing != null)
+                    StreamDisposing(this);
             }
 
             private void ResetStream()
