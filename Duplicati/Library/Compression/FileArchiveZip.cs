@@ -36,21 +36,23 @@ using SharpCompress.Writer;
 1) The filename should not be a read-write property IMO. 
 	- HUH?
 2) I am a bit worried that you keep all compressed streams in memory, why not write them to the archive as you go? Optionally when they are closed/disposed?
-	- TODO Once working
+	- Done
 3) The size is used to determine when to create a new volume. Apart from the size of streams, there is also a "Central Header" which is a list if filenames and offsets. It takes 46 + 24 + len(filename in encoding) pr. entry. It is fairly important that the size calculation is correct as some providers have a strict max-filesize. The current implementation does not capture this overhead 100% correctly, so I have added a 1200 bytes grace margin.
-	- TODO
+	- TODO - I think this is working now, but need to check with team to see if I still need to add headers as the size calculation seems to be correct due to FileStream length
 4) I could have sworn directories were used :). But that was perhaps in an earlier version. I originally used the ICompression interface for debugging, so I could switch to a folder instead of a Zip file for output. But lets remove those methods from the interface if it is not used.
 	- Done
 5) The "missing date" should be either EPOCH or "01/01/0000 00:00:00", Duplicati uses the timestamp to determine if the file should be checked for changes, setting it to "Now", means that the file is probably older than "Now" and will not be checked. I think I have used "new DateTime(0)" somewhere.
 	- Done (Using DateTime.Min)
 6) You use a bit of .Net 4.0 syntax, this means that we cannot port the changes directly to the 1.3.x branch as that is .Net 2.0. Not sure this is a problem though.
-	- Ignore or solve? Need to ask which part
+	- TODO: Ignore or solve? Need to ask which part
 7) The lookup of filenames should calculate the "normalized" version of the name outside the Linq query, otherwise it is translated for each compare.
 	- TODO
 8) I prefer if there is both a license.txt and download.txt file in each of the 3rd party folders, just to make sure we have actually considered license implications. But as they are not distributed, maybe that is not really important.
 	- TODO
 9) I checked the SharpCompress source, and they use UTF-8 all over, so we are good on that.
 	- TODO  
+10) Create a custom exception
+    - TODO
  */
 
 
@@ -85,12 +87,18 @@ namespace Duplicati.Library.Compression
         private string FileName { get; set; }
 
         /// <summary>
+        /// This property indicates that this current instance should write to a file
+        /// </summary>
+        private bool IsWriting { get; set; }
+
+        private IWriter ZipWriter { get; set; }
+
+        private FileStream FileWriter { get; set; }
+
+        /// <summary>
         /// Default constructor, used to read file extension and supported commands
         /// </summary>
-        public FileArchiveZip()
-        {
-
-        }
+        public FileArchiveZip() { }
 
         /// <summary>
         /// Constructs a new zip instance.
@@ -101,8 +109,13 @@ namespace Duplicati.Library.Compression
         /// <param name="options">The options passed on the commandline</param>
         public FileArchiveZip(string file, Dictionary<string, string> options)
         {
+            if (string.IsNullOrEmpty(file.Trim()))
+                throw new Exception("NULL filename is not valid");
+
             FileName = file;
             ZipStreams = new List<CompressionEntity>();
+
+            IsWriting = !File.Exists(file);
 
             //TODO: Set compression level, maybe on saving?
             //if (options.TryGetValue(COMPRESSION_LEVEL_OPTION, out cplvl) && int.TryParse(cplvl, out tmplvl))
@@ -140,34 +153,50 @@ namespace Duplicati.Library.Compression
         {
             var rtnStream = new MemoryStream();
 
-            using (var stream = File.OpenRead(FileName))
-            using (var reader = ReaderFactory.Open(stream))
+            if (!IsWriting)
             {
-                Stream foundStream = null;
-
-                while (reader.MoveToNextEntry())
+                if (File.Exists(FileName) && new FileInfo(FileName).Length > 0)
                 {
-                    if (reader.Entry.FilePath != sender.FilePath) continue;
+                    using (var stream = File.OpenRead(FileName))
+                    using (var reader = ReaderFactory.Open(stream))
+                    {
+                        Stream foundStream = null;
 
-                    foundStream = reader.OpenEntryStream();
-                    break;
-                }
+                        while (reader.MoveToNextEntry())
+                        {
+                            if (reader.Entry.FilePath != sender.FilePath) continue;
+
+                            foundStream = reader.OpenEntryStream();
+                            break;
+                        }
 
 
-                if (foundStream != null)
-                {
-                    using (foundStream)
-                        Utility.Utility.CopyStream(foundStream, rtnStream);
+                        if (foundStream != null)
+                        {
+                            using (foundStream)
+                                Utility.Utility.CopyStream(foundStream, rtnStream);
+                        }
+                    }
                 }
             }
-            
+
             return rtnStream;
         }
 
         private void EntityStreamStreamDisposing(CompressionEntity sender)
         {
-            //TODO: Write stream to file on disposing of each individual stream so we are no longer storing streams in memory for long periods
-            throw new NotImplementedException();
+            if (!IsWriting) return;
+
+            if (FileWriter == null)
+            {
+                FileWriter = File.OpenWrite(FileName);
+
+                //TODO: This can be replaced easily with LZMA
+                ZipWriter = WriterFactory.Open(FileWriter, ArchiveType.Zip, CompressionType.Deflate);
+            }
+
+            sender.ResetStream();
+            ZipWriter.Write(sender.FilePath, sender.CompressionStream, sender.LastModified);
         }
 
         /// <summary>
@@ -375,7 +404,9 @@ namespace Duplicati.Library.Compression
             //Encode filenames as unicode, we do this for all files, to avoid codepage issues
             //ze.Flags |= (int)ICSharpCode.SharpZipLib.Zip.GeneralBitFlags.UnicodeText;
 
-            return new StreamWrapper(GetFileStream(file, lastWrite));
+            IsWriting = true;
+
+            return GetFileStream(file, lastWrite);
         }
 
         private Stream GetFileStream(string file, DateTime lastWrite)
@@ -406,7 +437,21 @@ namespace Duplicati.Library.Compression
         /// </summary>
         public long Size
         {
-            get { return 0; }
+            get
+            {
+                return FileWriter == null? 0 : FileWriter.Length;
+            }
+        }
+
+        /// <summary>
+        /// The size of the current unflushed buffer
+        /// </summary>
+        public long FlushBufferSize
+        { 
+            get
+            {
+                return ZipStreams.Sum(x => x.UnFlushedSize);
+            } 
         }
 
 
@@ -420,19 +465,8 @@ namespace Duplicati.Library.Compression
             var entry = GetEntry(file);
             if (entry != null)
                 return entry.LastModified; //TODO: Is this ok?
-            else
-                throw new Exception(string.Format(Strings.FileArchiveZip.FileNotFoundError, file));
-        }
 
-        /// <summary>
-        /// The size of the current unflushed buffer
-        /// </summary>
-        public long FlushBufferSize
-        {
-            get
-            {
-                return 0;
-            }
+            throw new Exception(string.Format(Strings.FileArchiveZip.FileNotFoundError, file));
         }
 
         #endregion
@@ -441,121 +475,21 @@ namespace Duplicati.Library.Compression
 
         public void Dispose()
         {
-            if (ZipStreams == null || ZipStreams.Count < 1) return;
-
-            using (var zip = File.OpenWrite(FileName))
+            if (IsWriting)
             {
-                //TODO: This can be replaced easily with LZMA
-                using (var zipWriter = WriterFactory.Open(zip, ArchiveType.Zip, CompressionType.Deflate))
-                {
-                    foreach (var zipStream in ZipStreams)
-                    {
-                        using (zipStream)
-                            zipWriter.Write(zipStream.FilePath, zipStream.CompressionStream, zipStream.LastModified);
-                    }
-                }
+                if (ZipWriter != null)
+                    ZipWriter.Dispose();
+
+                if (FileWriter != null)
+                    FileWriter.Dispose();
             }
 
-            foreach (var entity in ZipStreams)
-                entity.Dispose();
+            if (ZipStreams != null)
+                foreach (var entity in ZipStreams)
+                    entity.Dispose();
         }
 
         #endregion
 
-        /// <summary>
-        /// CompressionStream wrapper to prevent closing the base stream when disposing the entry stream
-        /// </summary>
-        private class StreamWrapper : Utility.OverrideableStream
-        {
-            public delegate void DisposingHandler(StreamWrapper sender);
-
-            public event DisposingHandler Disposing;
-
-            public StreamWrapper(Stream stream)
-                : base(stream)
-            {
-            }
-
-            protected override void Dispose(bool disposing)
-            {
-                if (Disposing != null)
-                    Disposing(this);
-            }
-        }
-
-        private class CompressionEntity : IDisposable
-        {
-            #region Events
-
-            public delegate MemoryStream CompressionEntityHandler(CompressionEntity sender);
-            public event CompressionEntityHandler RequiresStream;
-
-            public delegate void DisposingHandler(CompressionEntity sender);
-            public event DisposingHandler StreamDisposing;
-            #endregion
-
-            #region Properties
-
-            private StreamWrapper stream { get; set; }
-            public StreamWrapper CompressionStream
-            {
-                get
-                {
-                    //Lazy loading style. Let the host setup our stream
-                    //This allows us to pick up a stream only when we need it
-                    if (stream == null && RequiresStream != null)
-                    {
-                        stream = new StreamWrapper(RequiresStream(this));
-                        stream.Disposing += StreamIsDisposing;
-                    }
-
-                    return stream;
-                }
-                set
-                {
-                    stream = value;
-                    ResetStream();
-                }
-            }
-            #endregion
-
-            public string FilePath { get; private set; }
-            public DateTime LastModified { get; private set; }
-
-            public CompressionEntity(IEntry entry)
-            {
-                FilePath = entry.FilePath;
-                SetLastModified(entry.LastModifiedTime);
-            }
-
-            public CompressionEntity(string filePath, DateTime? lastModified)
-            {
-                FilePath = filePath;
-                SetLastModified(lastModified);
-            }
-
-            private void SetLastModified(DateTime? lastModified)
-            {
-                LastModified = lastModified.HasValue ? lastModified.Value : DateTime.MinValue;
-            }
-
-            private void StreamIsDisposing(StreamWrapper sender)
-            {
-                if (StreamDisposing != null)
-                    StreamDisposing(this);
-            }
-
-            private void ResetStream()
-            {
-                if (stream.Position > 0 && stream.CanSeek)
-                    stream.Position = 0;
-            }
-
-            public void Dispose()
-            {
-                if (stream != null)
-                    stream.Dispose();
-            }
-        }
     }
 }

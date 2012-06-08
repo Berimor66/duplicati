@@ -64,9 +64,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CompressionEntity.cs" />
     <Compile Include="FileArchiveDirectory.cs" />
     <Compile Include="FileArchiveZip.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="StreamWrapper.cs" />
     <Compile Include="Strings\FileArchiveZip.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
