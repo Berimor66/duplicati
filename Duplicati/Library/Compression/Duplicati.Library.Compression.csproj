@@ -55,16 +55,15 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="SharpCompress">
+    <Reference Include="SharpCompress, Version=0.8.1.0, Culture=neutral, PublicKeyToken=8bfe994a39631a7b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\thirdparty\SharpCompress\SharpCompress.dll</HintPath>
-      <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CompressionEntity.cs" />
     <Compile Include="FileArchiveDirectory.cs" />
     <Compile Include="FileArchiveZip.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

@@ -61,13 +61,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Duplicati.GUI.TrayIcon", "D
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Duplicati.Server.Serialization", "Duplicati\Server\Duplicati.Server.Serialization\Duplicati.Server.Serialization.csproj", "{33FD1D24-C28F-4C71-933F-98F1586EA76C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Duplicati.Library.Compression.Tests", "Duplicati\Library\Compression.Tests\Duplicati.Library.Compression.Tests.csproj", "{EC46421A-1D97-4380-9665-0182D09FD0EE}"
-EndProject
 Global
-	GlobalSection(SubversionScc) = preSolution
-		Svn-Managed = True
-		Manager = AnkhSVN - Subversion Support for Visual Studio
-	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Debug|x86 = Debug|x86
@@ -313,15 +307,13 @@ Global
 		{33FD1D24-C28F-4C71-933F-98F1586EA76C}.Release|Any CPU.Build.0 = Release|Any CPU
 		{33FD1D24-C28F-4C71-933F-98F1586EA76C}.Release|x86.ActiveCfg = Release|x86
 		{33FD1D24-C28F-4C71-933F-98F1586EA76C}.Release|x86.Build.0 = Release|x86
-		{EC46421A-1D97-4380-9665-0182D09FD0EE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{EC46421A-1D97-4380-9665-0182D09FD0EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{EC46421A-1D97-4380-9665-0182D09FD0EE}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{EC46421A-1D97-4380-9665-0182D09FD0EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{EC46421A-1D97-4380-9665-0182D09FD0EE}.Release|Any CPU.Build.0 = Release|Any CPU
-		{EC46421A-1D97-4380-9665-0182D09FD0EE}.Release|x86.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(SubversionScc) = preSolution
+		Svn-Managed = True
+		Manager = AnkhSVN - Subversion Support for Visual Studio
 	EndGlobalSection
 	GlobalSection(MonoDevelopProperties) = preSolution
 		StartupItem = Duplicati\GUI\Duplicati.GUI.TrayIcon\Duplicati.GUI.TrayIcon.csproj
