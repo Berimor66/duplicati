@@ -30,11 +30,6 @@ namespace Duplicati.Library.Main.RSync
     public class RSyncDir : IDisposable
     {
         /// <summary>
-        /// This is the time offset for all timestamps (unix style)
-        /// </summary>
-        private static readonly DateTime EPOCH = new DateTime(1970, 1, 1, 0, 0, 0);
-
-        /// <summary>
         /// The time between each progress event
         /// </summary>
         private static readonly TimeSpan PROGRESS_TIMESPAN = TimeSpan.FromSeconds(1);
@@ -556,6 +551,10 @@ namespace Duplicati.Library.Main.RSync
         /// The combined size of all added files
         /// </summary>
         private long m_addedfilessize;
+        /// <summary>
+        /// Metadata collector, assigned to dummy instance to avoid null checks
+        /// </summary>
+        private Backupmetadata m_metadata = new Backupmetadata();
 
         /// <summary>
         /// The filter applied to restore or backup
@@ -651,8 +650,8 @@ namespace Duplicati.Library.Main.RSync
         /// <param name="stat">The status report object</param>
         /// <param name="filter">An optional filter that controls what files to include</param>
         /// <param name="patches">A list of signature archives to read, MUST be sorted in the creation order, oldest first</param>
-        public RSyncDir(string[] sourcefolder, CommunicationStatistics stat, Utility.FilenameFilter filter, List<KeyValuePair<ManifestEntry, Library.Interface.ICompression>> patches)
-            : this(sourcefolder, stat, filter)
+        public RSyncDir(string[] sourcefolder, CommunicationStatistics stat, Backupmetadata metadata, Utility.FilenameFilter filter, List<KeyValuePair<ManifestEntry, Library.Interface.ICompression>> patches)
+            : this(sourcefolder, stat, metadata, filter)
         {
             string[] prefixes = new string[] {
                 Utility.Utility.AppendDirSeparator(COMBINED_SIGNATURE_ROOT),
@@ -705,7 +704,7 @@ namespace Duplicati.Library.Main.RSync
                         long l;
                         for(int i = 0; i < Math.Min(filenames.Length, timestamps.Length); i++)
                             if (long.TryParse(timestamps[i], out l))
-                                m_oldFolders[filenames[i]] = EPOCH.AddSeconds(l);
+                                m_oldFolders[filenames[i]] = Library.Utility.Utility.EPOCH.AddSeconds(l);
                             else
                                 m_oldFolders[filenames[i]] = t;
                     }
@@ -724,7 +723,7 @@ namespace Duplicati.Library.Main.RSync
 
                     for (int i = 0; i < Math.Min(filenames.Length, timestamps.Length); i++)
                         if (long.TryParse(timestamps[i], out l))
-                            m_oldFolders[filenames[i]] = EPOCH.AddSeconds(l);
+                            m_oldFolders[filenames[i]] = Utility.Utility.EPOCH.AddSeconds(l);
                 }
 
                 //The latest file is the most valid
@@ -740,9 +739,10 @@ namespace Duplicati.Library.Main.RSync
         /// <param name="sourcefolder">The folders to create a backup from</param>
         /// <param name="stat">The status report object</param>
         /// <param name="filter">An optional filter that controls what files to include</param>
-        public RSyncDir(string[] sourcefolder, CommunicationStatistics stat, Utility.FilenameFilter filter)
+        public RSyncDir(string[] sourcefolder, CommunicationStatistics stat, Backupmetadata metadata, Utility.FilenameFilter filter)
         {
             m_filter = filter;
+            m_metadata = metadata == null ? new Backupmetadata() : metadata;
             m_oldSignatures = new Dictionary<string, ArchiveWrapper>(Utility.Utility.ClientFilenameStringComparer);
             m_oldFolders = new Dictionary<string, DateTime>(Utility.Utility.ClientFilenameStringComparer);
             m_lastVerificationTime = new Dictionary<string, DateTime>(Utility.Utility.ClientFilenameStringComparer);
@@ -1013,6 +1013,8 @@ namespace Duplicati.Library.Main.RSync
                 }
             }
 
+            m_metadata.SourceFolderCount = m_unproccesed.Folders.Count;
+
             //Build folder diffs
             foreach(string s in m_unproccesed.Folders)
             {
@@ -1250,7 +1252,7 @@ namespace Duplicati.Library.Main.RSync
                     for (int i = 0; i < m_newfolders.Count; i++)
                     {
                         folders[i] = m_newfolders[i].Key;
-                        timestamps[i] = ((long)((m_newfolders[i].Value - EPOCH).TotalSeconds)).ToString();
+                        timestamps[i] = ((long)((m_newfolders[i].Value - Utility.Utility.EPOCH).TotalSeconds)).ToString();
                     }
 
                     folders = FilenamesToPlatformIndependant(folders);
@@ -1268,7 +1270,7 @@ namespace Duplicati.Library.Main.RSync
                     for (int i = 0; i < m_updatedfolders.Count; i++)
                     {
                         folders[i] = m_updatedfolders[i].Key;
-                        timestamps[i] = ((long)((m_updatedfolders[i].Value - EPOCH).TotalSeconds)).ToString();
+                        timestamps[i] = ((long)((m_updatedfolders[i].Value - Utility.Utility.EPOCH).TotalSeconds)).ToString();
                     }
 
                     folders = FilenamesToPlatformIndependant(folders);
@@ -1303,6 +1305,17 @@ namespace Duplicati.Library.Main.RSync
                 int next = m_sortedfilelist ? 0 : r.Next(0, m_unproccesed.Files.Count);
                 string s = m_unproccesed.Files[next];
                 m_unproccesed.Files.RemoveAt(next);
+
+                try 
+                { 
+                    long size = m_snapshot.GetFileSize(s);
+                    if (size <= MaxFileSize && size > 0)
+                    {
+                        m_metadata.SourceFileSize += size;
+                        m_metadata.SourceFileCount++;
+                    }
+                }
+                catch { }
 
                 if (ProgressEvent != null && DateTime.Now > nextProgressEvent)
                 {
@@ -1375,7 +1388,7 @@ namespace Duplicati.Library.Main.RSync
                             }
 
 
-                            DateTime lastWrite = EPOCH;
+                            DateTime lastWrite = Utility.Utility.EPOCH;
                             try 
                             {
                                 //Record the change time after we opened (and thus locked) the file
@@ -1665,7 +1678,7 @@ namespace Duplicati.Library.Main.RSync
                 if (!entry.DumpSignature(signaturefile))
                 {
                     if (m_stat != null)
-                        m_stat.LogWarning(string.Format(Strings.RSyncDir.FileChangedWhileReadWarning, GetFullPathFromRelname(entry.relativeName)), null);
+                        m_stat.LogWarning(string.Format(Strings.RSyncDir.FileChangedWhileReadWarning, entry.fullname), null);
                 }
 
                 entry.Dispose();
@@ -1826,6 +1839,16 @@ namespace Duplicati.Library.Main.RSync
             /// <returns>True if the element is accepted, false if it is filtered</returns>
             private bool FilterPredicate(string element)
             {
+                return m_filter.ShouldInclude(Utility.Utility.DirectorySeparatorString, Utility.Utility.DirectorySeparatorString + element);
+            }
+
+            /// <summary>
+            /// A filter predicate used to filter unwanted folder elements from the list
+            /// </summary>
+            /// <param name="element">The relative string to examine</param>
+            /// <returns>True if the folder element is accepted, false if it is filtered</returns>
+            private bool FilterFoldersPredicate(string element)
+            {
                 return m_filter.ShouldInclude(Utility.Utility.DirectorySeparatorString, Utility.Utility.DirectorySeparatorString + Utility.Utility.AppendDirSeparator(element));
             }
 
@@ -1843,10 +1866,11 @@ namespace Duplicati.Library.Main.RSync
             /// Filters a list by hooking into the enumeration system, rather than copying the list
             /// </summary>
             /// <param name="input">The list of relative filenames to filter</param>
+            /// <param name="isFolderList">True if all elements should be interpreted as folders, false otherwise</param>
             /// <returns>A filtered list</returns>
-            public IEnumerable<string> Filterlist(IEnumerable<string> input)
+            public IEnumerable<string> Filterlist(IEnumerable<string> input, bool isFolderList)
             {
-                return new Utility.PlugableEnumerable<string>(new Predicate<string>(FilterPredicate), new Utility.Func<string,string>(GetFullpathFunc), input);
+                return new Utility.PlugableEnumerable<string>(isFolderList ? new Predicate<string>(FilterFoldersPredicate) : new Predicate<string>(FilterPredicate), new Utility.Func<string, string>(GetFullpathFunc), input);
             }
         }
 
@@ -1873,7 +1897,7 @@ namespace Duplicati.Library.Main.RSync
 
             //Delete all files that were removed
             if (patch.FileExists(DELETED_FILES))
-                foreach (string s in fh.Filterlist(FilenamesFromPlatformIndependant(patch.ReadAllLines(DELETED_FILES))))
+                foreach (string s in fh.Filterlist(FilenamesFromPlatformIndependant(patch.ReadAllLines(DELETED_FILES)), false))
                 {
                     if (System.IO.File.Exists(s))
                     {
@@ -1908,7 +1932,7 @@ namespace Duplicati.Library.Main.RSync
             {
                 if (m_folders_to_delete == null)
                     m_folders_to_delete = new List<string>();
-                List<string> deletedfolders = new List<string>(fh.Filterlist(FilenamesFromPlatformIndependant(patch.ReadAllLines(DELETED_FOLDERS))));
+                List<string> deletedfolders = new List<string>(fh.Filterlist(FilenamesFromPlatformIndependant(patch.ReadAllLines(DELETED_FOLDERS)), true));
                 //Make sure subfolders are deleted first
                 deletedfolders.Sort();
                 deletedfolders.Reverse();
@@ -1924,7 +1948,7 @@ namespace Duplicati.Library.Main.RSync
             //as non-empty folders will also be created when files are restored
             if (patch.FileExists(ADDED_FOLDERS))
             {
-                List<string> addedfolders = new List<string>(fh.Filterlist(FilenamesFromPlatformIndependant(patch.ReadAllLines(ADDED_FOLDERS))));
+                List<string> addedfolders = new List<string>(fh.Filterlist(FilenamesFromPlatformIndependant(patch.ReadAllLines(ADDED_FOLDERS)), true));
 
                 //Make sure topfolders are created first
                 addedfolders.Sort();
@@ -1954,7 +1978,7 @@ namespace Duplicati.Library.Main.RSync
                 string[] timestamps = patch.ReadAllLines(ADDED_FOLDERS_TIMESTAMPS);
 
                 for (int i = 0; i < folders.Length; i++)
-                    m_folderTimestamps[RSyncDir.GetFullPathFromRelname(destination, folders[i])] = EPOCH.AddSeconds(long.Parse(timestamps[i]));
+                    m_folderTimestamps[RSyncDir.GetFullPathFromRelname(destination, folders[i])] = Utility.Utility.EPOCH.AddSeconds(long.Parse(timestamps[i]));
             }
 
             if (patch.FileExists(UPDATED_FOLDERS) && patch.FileExists(UPDATED_FOLDERS_TIMESTAMPS))
@@ -1966,7 +1990,7 @@ namespace Duplicati.Library.Main.RSync
 
                 for (int i = 0; i < folders.Length; i++)
                     if (long.TryParse(timestamps[i], out l))
-                        m_folderTimestamps[RSyncDir.GetFullPathFromRelname(destination, folders[i])] = EPOCH.AddSeconds(l);
+                        m_folderTimestamps[RSyncDir.GetFullPathFromRelname(destination, folders[i])] = Utility.Utility.EPOCH.AddSeconds(l);
             }
 
             PartialEntryRecord pe = null;

@@ -153,6 +153,12 @@ namespace Duplicati.Library.Main
     /// <param name="submessage">A message describing the current transfer operation</param>
     public delegate void OperationProgressEvent(Interface caller, DuplicatiOperation operation, DuplicatiOperationMode specificoperation, int progress, int subprogress, string message, string submessage);
 
+    /// <summary>
+    /// A delegate used to report metadata about the current backup, obtained while running a normal operation
+    /// </summary>
+    /// <param name="metadata">A table with various metadata informations</param>
+    public delegate void MetadataReportDelegate(IDictionary<string, string> metadata);
+
     public class Interface : IDisposable, LiveControl.ILiveControl
     {
         /// <summary>
@@ -213,6 +219,7 @@ namespace Duplicati.Library.Main
         public event OperationProgressEvent OperationCompleted;
         public event OperationProgressEvent OperationProgress;
         public event OperationProgressEvent OperationError;
+        public event MetadataReportDelegate MetadataReport;
 
         /// <summary>
         /// The live control interface
@@ -319,16 +326,18 @@ namespace Duplicati.Library.Main
             if (sources == null || sources.Length == 0)
                 throw new Exception(Strings.Interface.NoSourceFoldersError);
 
-            //Make sure they all have the same format
+            //Make sure they all have the same format and exist
             for (int i = 0; i < sources.Length; i++)
-                sources[i] = Utility.Utility.AppendDirSeparator(sources[i]);
+            {
+                sources[i] = Utility.Utility.AppendDirSeparator(System.IO.Path.GetFullPath(sources[i]));
+
+                if (!System.IO.Directory.Exists(sources[i]))
+                    throw new System.IO.IOException(String.Format(Strings.Interface.SourceFolderIsMissingError, sources[i]));
+            }
 
             //Sanity check for duplicate folders and multiple inclusions of the same folder
             for (int i = 0; i < sources.Length - 1; i++)
             {
-                if (!System.IO.Directory.Exists(sources[i]))
-                    throw new System.IO.IOException(String.Format(Strings.Interface.SourceFolderIsMissingError, sources[i]));
-
                 for (int j = i + 1; j < sources.Length; j++)
                     if (sources[i].Equals(sources[j], Utility.Utility.IsFSCaseSensitive ? StringComparison.CurrentCulture : StringComparison.CurrentCultureIgnoreCase))
                         throw new Exception(string.Format(Strings.Interface.SourceDirIsIncludedMultipleTimesError, sources[i]));
@@ -369,7 +378,24 @@ namespace Duplicati.Library.Main
                     
                     CheckLiveControl();
 
-                    List<ManifestEntry> backupsets = full ? new List<ManifestEntry>() : backend.GetBackupSets();
+                    List<ManifestEntry> backupsets;
+
+                    if (full)
+                    {
+                        //This will create the target folder
+                        List<Duplicati.Library.Interface.IFileEntry> tmp = backend.List(false);
+
+                        //If it is possible to parse the chain, we extract some metadata
+                        try { backend.ExtractMetadataFromList(tmp); }
+                        catch { }
+
+                        backupsets = new List<ManifestEntry>();
+                    }
+                    else
+                    {
+                        //This will list all files on the backend and create the target folder
+                        backupsets = backend.GetBackupSets();
+                    }
 
                     if (backupsets.Count == 0)
                     {
@@ -556,9 +582,9 @@ namespace Duplicati.Library.Main
 
                         OperationProgress(this, DuplicatiOperation.Backup, bs.OperationMode, -1, -1, Strings.Interface.StatusBuildingFilelist, "");
 
-                        bool completedWithoutChanges;
+                        bool completedWithoutChanges = true;
 
-                        using (RSync.RSyncDir dir = new Duplicati.Library.Main.RSync.RSyncDir(manifest.SourceDirs, bs, m_options.Filter, patches))
+                        using (RSync.RSyncDir dir = new Duplicati.Library.Main.RSync.RSyncDir(manifest.SourceDirs, bs, backend.Metadata, m_options.Filter, patches))
                         {
                             CheckLiveControl();
 
@@ -703,6 +729,25 @@ namespace Duplicati.Library.Main
                                     vol++;
                                 }
                             }
+
+                            if (!completedWithoutChanges)
+                            {
+                                if (full)
+                                {
+                                    backend.Metadata.CurrentChainLength = 1;
+                                    backend.Metadata.CurrentFullDate = backupchaintime;
+                                    backend.Metadata.FullBackupCount++;
+                                }
+                                else
+                                {
+                                    backend.Metadata.CurrentChainLength++;
+                                }
+                                backend.Metadata.LastBackupDate = backupchaintime;
+                                backend.Metadata.LongestChainLength = Math.Max(backend.Metadata.CurrentChainLength, backend.Metadata.LongestChainLength);
+                                backend.Metadata.TotalVolumeCount += vol;
+                                backend.Metadata.TotalBackupSets++;
+                            }
+
                         }
 
 
@@ -784,13 +829,20 @@ namespace Duplicati.Library.Main
                     }
 
                     if (backend == null || backend.ManifestUploads == 0)
+                    {
+                        Logging.Log.WriteMessage(string.Format(Strings.Interface.ErrorRunningBackup, ex.Message), Logging.LogMessageType.Error);
                         throw; //This also activates "finally", unlike in other languages...
+                    }
 
+                    Logging.Log.WriteMessage(string.Format(Strings.Interface.PartialUploadMessage, backend.ManifestUploads, ex.Message), Logging.LogMessageType.Warning);
                     bs.LogError(string.Format(Strings.Interface.PartialUploadMessage, backend.ManifestUploads, ex.Message), ex);
                 }
                 finally
                 {
                     m_progress = 100.0;
+                    if (MetadataReport != null && backend != null)
+                        MetadataReport(backend.Metadata.AsReport());
+
                     if (backend != null)
                         try { backend.Dispose(); }
                         catch { }
@@ -1245,7 +1297,7 @@ namespace Duplicati.Library.Main
                         if (!System.IO.Directory.Exists(s))
                             System.IO.Directory.CreateDirectory(s);
 
-                    using (RSync.RSyncDir sync = new Duplicati.Library.Main.RSync.RSyncDir(target, rs, filter))
+                    using (RSync.RSyncDir sync = new Duplicati.Library.Main.RSync.RSyncDir(target, rs, backend.Metadata, filter))
                     {
                         sync.ProgressEvent += new Duplicati.Library.Main.RSync.RSyncDir.ProgressEventDelegate(RestoreRSyncDir_ProgressEvent);
 
@@ -1343,6 +1395,9 @@ namespace Duplicati.Library.Main
                 }
                 finally
                 {
+                    if (MetadataReport != null && backend != null)
+                        MetadataReport(backend.Metadata.AsReport());
+
                     if (backend != null)
                         backend.Dispose();
 
@@ -1354,10 +1409,6 @@ namespace Duplicati.Library.Main
             } 
 
             rs.EndTime = DateTime.Now;
-            
-            //TODO: The RS should have the number of restored files, and the size of those
-            //but that is a little difficult, because some may be restored, and then removed
-
             return rs.ToString();
         }
 
@@ -1493,9 +1544,13 @@ namespace Duplicati.Library.Main
                         throw new Exception(Strings.Interface.InternalDeleteCountError);
 
                     sb.Append(RemoveBackupSets(backend, toremove));
+                    backend.RecalculateChainMetadata(flatlist);
                 }
                 finally
                 {
+                    if (MetadataReport != null && backend != null)
+                        MetadataReport(backend.Metadata.AsReport());
+
                     if (OperationCompleted != null)
                         OperationCompleted(this, DuplicatiOperation.Remove, stats.OperationMode, 100, -1, Strings.Interface.StatusCompleted, "");
                 }
@@ -1541,9 +1596,13 @@ namespace Duplicati.Library.Main
                     throw new Exception(Strings.Interface.InternalDeleteCountError);
 
                 sb.Append(RemoveBackupSets(backend, toremove));
+                backend.RecalculateChainMetadata(entries);
             }
             finally
             {
+                if (MetadataReport != null)
+                    MetadataReport(backend.Metadata.AsReport());
+
                 if (OperationCompleted != null)
                     OperationCompleted(this, DuplicatiOperation.Remove, stats.OperationMode, 100, -1, Strings.Interface.StatusCompleted, "");
             }
@@ -1610,9 +1669,13 @@ namespace Duplicati.Library.Main
                     throw new Exception(Strings.Interface.InternalDeleteCountError);
 
                 sb.Append(RemoveBackupSets(backend, toremove));
+                backend.RecalculateChainMetadata(entries);
             }
             finally
             {
+                if (MetadataReport != null && backend != null)
+                    MetadataReport(backend.Metadata.AsReport());
+
                 if (OperationCompleted != null)
                     OperationCompleted(this, DuplicatiOperation.Remove, stats.OperationMode, 100, -1, Strings.Interface.StatusCompleted, "");
             }
@@ -1677,7 +1740,13 @@ namespace Duplicati.Library.Main
                         {
                             backend.Delete(kx.Key);
                             backend.Delete(kx.Value);
+                            backend.Metadata.TotalVolumeCount--;
                         }
+
+                        if (me.IsFull)
+                            backend.Metadata.FullBackupCount--;
+                        
+                        backend.Metadata.TotalBackupSets--;
                     }
                 }
 
@@ -1804,7 +1873,7 @@ namespace Duplicati.Library.Main
 
                 List<KeyValuePair<ManifestEntry, Library.Interface.ICompression>> patches = FindPatches(backend, entries, basefolder, false, rs);
 
-                using (RSync.RSyncDir dir = new Duplicati.Library.Main.RSync.RSyncDir(new string[] { basefolder }, rs, filter, patches))
+                using (RSync.RSyncDir dir = new Duplicati.Library.Main.RSync.RSyncDir(new string[] { basefolder }, rs, backend.Metadata, filter, patches))
                     res = dir.UnmatchedFiles();
             }
 
@@ -1848,6 +1917,20 @@ namespace Duplicati.Library.Main
         private void SetupCommonOptions(CommunicationStatistics stats)
         {            
             m_options.MainAction = stats.OperationMode;
+            
+            switch (m_options.MainAction)
+            {
+                case DuplicatiOperationMode.Backup:
+                case DuplicatiOperationMode.BackupFull:
+                case DuplicatiOperationMode.BackupIncremental:
+                    break;
+                
+                default:
+                    //It only makes sense to enable auto-creation if we are writing files.
+                    if (!m_options.RawOptions.ContainsKey("disable-autocreate-folder"))
+                        m_options.RawOptions["disable-autocreate-folder"] = "true";
+                    break;
+            }
 
             Library.Logging.Log.LogLevel = m_options.Loglevel;
 
@@ -1882,6 +1965,8 @@ namespace Duplicati.Library.Main
             foreach (KeyValuePair<bool, Library.Interface.IGenericModule> mx in m_options.LoadedModules)
                 if (mx.Key)
                     mx.Value.Configure(m_options.RawOptions);
+
+            Library.Logging.Log.WriteMessage(string.Format(Strings.Interface.StartingOperationMessage, m_options.MainAction), Logging.LogMessageType.Information);
         }
 
         /// <summary>
@@ -2015,7 +2100,7 @@ namespace Duplicati.Library.Main
                     foreach (KeyValuePair<ManifestEntry, Library.Interface.ICompression> entry in FindPatches(backend, new List<ManifestEntry>(new ManifestEntry[] { bestFit }), folder, false, stats))
                         patches.Add(entry.Value);
 
-                    using (RSync.RSyncDir dir = new Duplicati.Library.Main.RSync.RSyncDir(new string[] { folder }, stats, null))
+                    using (RSync.RSyncDir dir = new Duplicati.Library.Main.RSync.RSyncDir(new string[] { folder }, stats, backend.Metadata, null))
                         return dir.ListPatchFiles(patches);
                 }
             }
@@ -2341,6 +2426,8 @@ namespace Duplicati.Library.Main
                         stats.LogWarning(validationMessage, null);
                 }
             }
+
+            //TODO: Based on the action, see if all options are relevant
         }
 
         #region Static interface

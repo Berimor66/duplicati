@@ -14,11 +14,6 @@ namespace Duplicati.Library.Backend
     /// </summary>
     public class SkyDriveSession : IDisposable
     {
-
-        /// <summary>
-        /// The EPOCH time, used to generate nonces
-        /// </summary>
-        private static readonly DateTime EPOCH = new DateTime(1970, 1, 1, 0, 0, 0);
         /// <summary>
         /// The main url for the SkyDrive service, used to query for root folders
         /// </summary>
@@ -211,7 +206,9 @@ namespace Duplicati.Library.Backend
         {
             HttpWebRequest getUrls = (HttpWebRequest)WebRequest.Create(PASSPORT_LIST_URL);
             getUrls.UserAgent = USER_AGENT;
-            using (HttpWebResponse resp = (HttpWebResponse)Library.Utility.Utility.SafeGetResponse(getUrls))
+
+            Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(getUrls);
+            using (HttpWebResponse resp = (HttpWebResponse)areq.GetResponse())
             {
                 string header = resp.Headers[PASSPORT_URL_LIST_HEADER];
                 if (string.IsNullOrEmpty(header))
@@ -240,7 +237,8 @@ namespace Duplicati.Library.Backend
             //We use the first request to extract the nonce template
             if (string.IsNullOrEmpty(m_noncetemplate))
             {
-                using (HttpWebResponse resp = (HttpWebResponse)Library.Utility.Utility.SafeGetResponse(listRequest))
+                Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(listRequest);
+                using (HttpWebResponse resp = (HttpWebResponse)areq.GetResponse())
                 {
                     string nonce = resp.Headers[NONCE_HEADER];
                     if (string.IsNullOrEmpty(nonce))
@@ -260,7 +258,8 @@ namespace Duplicati.Library.Backend
 
             //Get the list of root folders, the user CID and the urls for webdav folders
             XmlDocument doc = new XmlDocument();
-            using (HttpWebResponse resp = (HttpWebResponse)Library.Utility.Utility.SafeGetResponse(listRequest))
+            Utility.AsyncHttpRequest areq2 = new Utility.AsyncHttpRequest(listRequest);
+            using (HttpWebResponse resp = (HttpWebResponse)areq2.GetResponse())
             using (System.IO.Stream s = resp.GetResponseStream())
                 doc.Load(s);
 
@@ -358,7 +357,8 @@ namespace Duplicati.Library.Backend
             SetAuthenticationToken(soapRequest);
 
             byte[] data = System.Text.Encoding.UTF8.GetBytes(SOAP_GETACCOUNT_INFO_REQUEST);
-            using (System.IO.Stream s = Utility.Utility.SafeGetRequestStream(soapRequest))
+            Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(soapRequest);
+            using (System.IO.Stream s = areq.GetRequestStream())
                 s.Write(data, 0, data.Length);
 
             return soapRequest;
@@ -429,7 +429,7 @@ namespace Duplicati.Library.Backend
             //The nonce template seems to be statically defined as:
             //"Passport1.4 ct={0},rver=6.1.6206.0,wp=MBI,lc=1033,id=250206"
             // but just to be sure, we pick it up from the server
-            return String.Format(m_noncetemplate, (int)Math.Floor((DateTime.Now - EPOCH).TotalSeconds));
+            return String.Format(m_noncetemplate, (int)Math.Floor((DateTime.Now - Library.Utility.Utility.EPOCH).TotalSeconds));
         }
 
         /// <summary>
@@ -467,25 +467,43 @@ namespace Duplicati.Library.Backend
             if (string.IsNullOrEmpty(m_noncetemplate))
                 return null;
 
-            //Get a authentification token
-            HttpWebRequest getToken = (HttpWebRequest)WebRequest.Create(m_loginUrl);
-            getToken.UserAgent = USER_AGENT;
-            getToken.Headers[AUTHORIZATION_HEADER] = string.Format(LOGIN_HEADER_TEMPLATE, HttpUtility.UrlEncode(m_username), HttpUtility.UrlEncode(m_password), verb, url, CreateNonce(verb, url));
-
-            using (HttpWebResponse resp = (HttpWebResponse)Library.Utility.Utility.SafeGetResponse(getToken))
+            try
             {
-                string token_header = resp.Headers[AUTHENTIFICATION_RESULT_HEADER];
-                string redir = resp.Headers[REDIR_LOCATION_HEADER];
+                //Get a authentification token
+                HttpWebRequest getToken = (HttpWebRequest)WebRequest.Create(m_loginUrl);
+                getToken.UserAgent = USER_AGENT;
+                getToken.Headers[AUTHORIZATION_HEADER] = string.Format(LOGIN_HEADER_TEMPLATE, HttpUtility.UrlEncode(m_username), HttpUtility.UrlEncode(m_password), verb, url, CreateNonce(verb, url));
 
-                string status = LOGIN_STATUS_MATCH.Match(token_header).Groups["status"].Value;
-                string token = LOGIN_TOKEN_MATCH.Match(token_header).Groups["token"].Value;
+                Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(getToken);
+                using (HttpWebResponse resp = (HttpWebResponse)areq.GetResponse())
+                {
+                    string token_header = resp.Headers[AUTHENTIFICATION_RESULT_HEADER];
+                    string redir = resp.Headers[REDIR_LOCATION_HEADER];
 
-                if (status != "success")
-                    throw new Exception(string.Format(Strings.SkyDrive.LoginFailedError, status));
-                if (string.IsNullOrEmpty(token))
-                    throw new Exception(Strings.SkyDrive.NoTokenError);
+                    string status = LOGIN_STATUS_MATCH.Match(token_header).Groups["status"].Value;
+                    string token = LOGIN_TOKEN_MATCH.Match(token_header).Groups["token"].Value;
 
-                return string.Format(TOKEN_FORMAT_TEMPLATE, token);
+                    if (status != "success")
+                        throw new Exception(string.Format(Strings.SkyDrive.LoginFailedError, status));
+                    if (string.IsNullOrEmpty(token))
+                        throw new Exception(Strings.SkyDrive.NoTokenError);
+
+                    return string.Format(TOKEN_FORMAT_TEMPLATE, token);
+                }
+            }
+            catch (WebException wex)
+            {
+                if (wex.Response is HttpWebResponse && ((HttpWebResponse)wex.Response).StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    if (IsPasswordTooLong(m_password))
+                        throw new Exception(Strings.SkyDriveSession.InvalidPasswordLongPasswordFound, wex);
+                    else if (HasInvalidChars(m_password))
+                        throw new Exception(Strings.SkyDriveSession.InvalidPasswordInvalidCharsFound, wex);
+                    else
+                        throw new Exception(Strings.SkyDriveSession.InvalidUsernameOrPassword, wex);
+                }
+
+                throw;
             }
         }
 
@@ -528,10 +546,12 @@ namespace Duplicati.Library.Backend
 
             req.ContentLength = data.Length;
 
-            using (System.IO.Stream s = Utility.Utility.SafeGetRequestStream(req))
+            Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(req);
+
+            using (System.IO.Stream s = areq.GetRequestStream())
                 s.Write(data, 0, data.Length);
 
-            using (HttpWebResponse resp = (HttpWebResponse)Library.Utility.Utility.SafeGetResponse(req))
+            using (HttpWebResponse resp = (HttpWebResponse)areq.GetResponse())
             {
                 int code = (int)resp.StatusCode;
                 if (code < 200 || code >= 300) //For some reason Mono does not throw this automatically
@@ -630,7 +650,8 @@ namespace Duplicati.Library.Backend
             SetWlidAuthenticationToken(req);
 
             XmlDocument doc = new XmlDocument();
-            using (HttpWebResponse resp = (HttpWebResponse)Library.Utility.Utility.SafeGetResponse(req))
+            Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(req);
+            using (HttpWebResponse resp = (HttpWebResponse)areq.GetResponse())
             using (System.IO.Stream s = resp.GetResponseStream())
                 doc.Load(s);
 
@@ -723,8 +744,9 @@ namespace Duplicati.Library.Backend
                 //Delete uses the default timeout
                 //req.Timeout = System.Threading.Timeout.Infinite;
                 SetWlidAuthenticationToken(req);
+                Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(req);
 
-                using (HttpWebResponse resp = (HttpWebResponse)Library.Utility.Utility.SafeGetResponse(req))
+                using (HttpWebResponse resp = (HttpWebResponse)areq.GetResponse())
                 {
                     int code = (int)resp.StatusCode;
                     if (code < 200 || code >= 300) //For some reason Mono does not throw this automatically
@@ -788,8 +810,6 @@ namespace Duplicati.Library.Backend
                     req.AllowAutoRedirect = false;
                     req.KeepAlive = false;
 
-                    //We only depend on the ReadWriteTimeout
-                    req.Timeout = System.Threading.Timeout.Infinite;
                     SetWlidAuthenticationToken(req);
 
                     byte[] createRequest = System.Text.Encoding.UTF8.GetBytes(string.Format(CREATE_FILE_TEMPLATE, HttpUtility.HtmlEncode(remotename)));
@@ -812,7 +832,9 @@ namespace Duplicati.Library.Backend
                     try { req.ContentLength = xmlHeader.Length + createRequest.Length + newLine.Length + dataHeader.Length + data.Length + newLine.Length + lastBoundary.Length; }
                     catch { }
 
-                    using (System.IO.Stream s = Utility.Utility.SafeGetRequestStream(req))
+                    Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(req);
+
+                    using (System.IO.Stream s = areq.GetRequestStream())
                     {
                         s.Write(xmlHeader, 0, xmlHeader.Length);
                         s.Write(createRequest, 0, createRequest.Length);
@@ -823,7 +845,7 @@ namespace Duplicati.Library.Backend
                         s.Write(lastBoundary, 0, lastBoundary.Length);
                     }
 
-                    using (System.Net.HttpWebResponse resp = (System.Net.HttpWebResponse)Library.Utility.Utility.SafeGetResponse(req))
+                    using (System.Net.HttpWebResponse resp = (System.Net.HttpWebResponse)areq.GetResponse())
                     {
                         int code = (int)resp.StatusCode;
                         if (code < 200 || code >= 300) //For some reason Mono does not throw this automatically
@@ -859,14 +881,14 @@ namespace Duplicati.Library.Backend
                 req.AllowAutoRedirect = false;
                 req.KeepAlive = false;
 
-                //We only depend on the ReadWriteTimeout
-                req.Timeout = System.Threading.Timeout.Infinite;
                 SetWlidAuthenticationToken(req);
 
-                using (System.IO.Stream s = Utility.Utility.SafeGetRequestStream(req))
+                Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(req);
+
+                using (System.IO.Stream s = areq.GetRequestStream())
                     Utility.Utility.CopyStream(data, s);
 
-                using (System.Net.HttpWebResponse resp = (System.Net.HttpWebResponse)Library.Utility.Utility.SafeGetResponse(req))
+                using (System.Net.HttpWebResponse resp = (System.Net.HttpWebResponse)areq.GetResponse())
                 {
                     int code = (int)resp.StatusCode;
                     if (code < 200 || code >= 300) //For some reason Mono does not throw this automatically
@@ -909,12 +931,12 @@ namespace Duplicati.Library.Backend
             req.Method = WebRequestMethods.Http.Get;
             req.AllowAutoRedirect = false;
             req.KeepAlive = false;
-            //We only depend on the ReadWriteTimeout
-            req.Timeout = System.Threading.Timeout.Infinite;
             req.UserAgent = USER_AGENT;
             req.Headers[AUTHORIZATION_HEADER] = m_mainpassporttoken;
 
-            HttpWebResponse resp = (HttpWebResponse)Library.Utility.Utility.SafeGetResponse(req);
+            Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(req);
+
+            HttpWebResponse resp = (HttpWebResponse)areq.GetResponse();
             int code = (int)resp.StatusCode;
 
             //For some reason Mono does not throw this automatically
@@ -965,5 +987,33 @@ namespace Duplicati.Library.Backend
         }
 
         #endregion
+
+
+        /// <summary>
+        /// Utility function to test if password is so long that it can cause problems
+        /// </summary>
+        /// <param name="password">The password to validate</param>
+        /// <returns>True if the password is too long, false otherwise</returns>
+        public static bool IsPasswordTooLong(string password)
+        {
+            if (string.IsNullOrEmpty(password))
+                return false;
+
+            return password.Length > 16;
+        }
+
+        /// <summary>
+        /// Utility function to test if the password contains non-standard characters
+        /// </summary>
+        /// <param name="password">The password to validate</param>
+        /// <returns>True if the password has invalid chars, false otherwise</returns>
+        public static bool HasInvalidChars(string password)
+        {
+            bool invalidChars = false;
+            foreach (char c in password)
+                invalidChars |= !("!&()[~@".IndexOf(c) >= 0 || char.IsLetterOrDigit(c));
+
+            return invalidChars;
+        }
     }
 }

@@ -55,6 +55,21 @@ namespace Duplicati.Library.Main
         /// </summary>
         private CommunicationStatistics m_statistics;
         /// <summary>
+        /// The set of metadata gathered during various operations
+        /// </summary>
+        private Backupmetadata m_metadata;
+
+        /// <summary>
+        /// Size of manifestA
+        /// </summary>
+        private long m_manifestSizeA = 0;
+
+        /// <summary>
+        /// Size of manifestB
+        /// </summary>
+        private long m_manifestSizeB = 0;
+
+        /// <summary>
         /// The set of options used by Duplicati
         /// </summary>
         private Options m_options;
@@ -209,6 +224,7 @@ namespace Duplicati.Library.Main
         /// <param name="options">A set of backend options</param>
         public BackendWrapper(CommunicationStatistics statistics, string backend, Options options)
         {
+            m_metadata = new Backupmetadata();
             m_statistics = statistics;
             m_options = options;
 
@@ -278,6 +294,10 @@ namespace Duplicati.Library.Main
 
         public void AddOrphan(BackupEntryBase entry)
         {
+            m_metadata.OrphanFileCount++;
+            if (entry.Filesize > 0)
+                m_metadata.OrphanFileSize += entry.Filesize;
+
             if (m_orphans != null)
                 m_orphans.Add(entry);
             else
@@ -301,6 +321,35 @@ namespace Duplicati.Library.Main
         {
             List<Library.Interface.IFileEntry> result = (List<Library.Interface.IFileEntry>)ProtectedInvoke("ListInternal");
 
+            long totalSpace = -1;
+            long spaceLeft = -1;
+
+            if (m_backend is Duplicati.Library.Interface.IQuotaEnabledBackend)
+            {
+                try { spaceLeft = ((Duplicati.Library.Interface.IQuotaEnabledBackend)m_backend).FreeQuotaSpace; }
+                catch { }
+                try { totalSpace = ((Duplicati.Library.Interface.IQuotaEnabledBackend)m_backend).TotalQuotaSpace; }
+                catch { }
+
+                if (totalSpace < 0)
+                    totalSpace = m_options.QuotaSize;
+
+                if (totalSpace > 0)
+                    m_metadata.TotalQuotaSpace = totalSpace;
+                if (spaceLeft > 0)
+                    m_metadata.FreeQuotaSpace = spaceLeft;
+            }
+
+            long totalSize = 0;
+            foreach (Library.Interface.IFileEntry f in result)
+                if (f.Size > 0)
+                    totalSize += f.Size;
+
+            this.m_metadata.TotalSize = totalSize;
+            this.m_metadata.TotalFileCount = result.Count;
+            if (m_options.QuotaSize > 0)
+                this.m_metadata.AssignedQuotaSpace = m_options.QuotaSize;
+
             if (!filter)
                 return result;
 
@@ -321,6 +370,10 @@ namespace Duplicati.Library.Main
 
                 m_transactionFile = found[0];
                 result.Remove(m_transactionFile.Fileentry);
+                m_metadata.OrphanFileCount++;
+                
+                if (m_transactionFile.Filesize > 0)
+                    m_metadata.OrphanFileSize += m_transactionFile.Filesize;
 
                 if (m_statistics != null)
                 {
@@ -374,9 +427,14 @@ namespace Duplicati.Library.Main
                 for (int i = 0; i < result.Count; i++)
                     if (lookup.ContainsKey(result[i].Name))
                     {
+                        m_metadata.OrphanFileCount++;
+                        if (result[i].Size > 0)
+                            m_metadata.OrphanFileSize += result[i].Size;
+
                         m_leftovers.Add(result[i]);
                         result.RemoveAt(i);
                         i--;
+
                     }
             }
 
@@ -417,12 +475,18 @@ namespace Duplicati.Library.Main
 
         }
 
+        public void ExtractMetadataFromList(List<Duplicati.Library.Interface.IFileEntry> files)
+        {
+            try { SortAndPairSets(files, true); }
+            catch { }
+        }
+
         /// <summary>
         /// Parses the filelist into a list of full backups, each with a chain of incrementals attached
         /// </summary>
         /// <param name="files">The list of filenames found on the backend</param>
         /// <returns>A list of full backups</returns>
-        public List<ManifestEntry> SortAndPairSets(List<Duplicati.Library.Interface.IFileEntry> files)
+        private List<ManifestEntry> SortAndPairSets(List<Duplicati.Library.Interface.IFileEntry> files, bool metadataOnly)
         {
             Sorter sortHelper = new Sorter();
             files.Sort(sortHelper);
@@ -430,7 +494,7 @@ namespace Duplicati.Library.Main
             for(int i = 1; i < files.Count; i++)
                 if (files[i].Name == files[i - 1].Name)
                 {
-                    if (m_statistics != null)
+                    if (m_statistics != null && !metadataOnly)
                         m_statistics.LogWarning(string.Format(Strings.BackendWrapper.DuplicateFileEntryWarning, files[i].Name), null);
                     
                     files.RemoveAt(i);
@@ -443,22 +507,51 @@ namespace Duplicati.Library.Main
             Dictionary<string, List<ContentEntry>> contents = new Dictionary<string, List<ContentEntry>>();
             Dictionary<string, VerificationEntry> verifications = new Dictionary<string, VerificationEntry>();
 
+            //We set these properties so they are reported, and they will be updated to correct values if any alien/orphan files are found
+            m_metadata.AlienFileCount = 0;
+            m_metadata.AlienFileSize = 0;
+            m_metadata.OrphanFileCount = 0; 
+            m_metadata.OrphanFileSize = 0;
+
             //First we parse all files into their respective classes
             foreach (Duplicati.Library.Interface.IFileEntry fe in files)
             {
                 BackupEntryBase be = m_filenamestrategy.ParseFilename(fe);
                 if (be == null)
                 {
-                    if (m_statistics != null && m_statistics.VerboseErrors && !fe.IsFolder)
+                    if (m_statistics != null && m_statistics.VerboseErrors && !fe.IsFolder && !metadataOnly)
                         m_statistics.LogWarning(string.Format(Strings.BackendWrapper.UnmatchedFilenameWarning, fe.Name), null);
+
+                    m_metadata.AlienFileCount++;
+                    if (fe.Size > 0)
+                        m_metadata.AlienFileSize += fe.Size;
+
                     continue; //Non-duplicati files
                 }
 
                 if (!string.IsNullOrEmpty(be.EncryptionMode) && Array.IndexOf<string>(DynamicLoader.EncryptionLoader.Keys, be.EncryptionMode) < 0)
-                    continue;
+                {
+                    if (m_statistics != null && !metadataOnly)
+                        m_statistics.LogWarning(string.Format(Strings.BackendWrapper.UnmatchedEncryptionModuleWarning, be.Filename, be.EncryptionMode), null);
 
-                if (be is PayloadEntryBase && Array.IndexOf<string>(DynamicLoader.CompressionLoader.Keys,((PayloadEntryBase)be).Compression) < 0)
+                    m_metadata.AlienFileCount++;
+                    if (be.Filesize > 0)
+                        m_metadata.AlienFileSize += be.Filesize;
+
                     continue;
+                }
+
+                if (be is PayloadEntryBase && Array.IndexOf<string>(DynamicLoader.CompressionLoader.Keys, ((PayloadEntryBase)be).Compression) < 0)
+                {
+                    if (m_statistics != null && !metadataOnly)
+                        m_statistics.LogWarning(string.Format(Strings.BackendWrapper.UnmatchedCompressionModuleWarning, be.Filename, ((PayloadEntryBase)be).Compression), null);
+
+                    m_metadata.AlienFileCount++;
+                    if (be.Filesize > 0)
+                        m_metadata.AlienFileSize += be.Filesize;
+
+                    continue;
+                }
 
                 if (be is ManifestEntry)
                 {
@@ -486,7 +579,16 @@ namespace Duplicati.Library.Main
                     verifications[be.TimeString] = (VerificationEntry)be;
                 }
                 else
-                    throw new Exception(string.Format(Strings.BackendWrapper.InvalidEntryTypeError, be.GetType().FullName));
+                {
+                    if (!metadataOnly)
+                        throw new Exception(string.Format(Strings.BackendWrapper.InvalidEntryTypeError, be.GetType().FullName));
+                    else
+                    {
+                        m_metadata.AlienFileCount++;
+                        if (be.Filesize > 0)
+                            m_metadata.AlienFileSize += be.Filesize;
+                    }
+                }
             }
 
             fulls.Sort(sortHelper);
@@ -571,10 +673,13 @@ namespace Duplicati.Library.Main
 
                 if (index >= fulls.Count || be.Time <= fulls[index].Time)
                 {
-                    if (m_orphans == null)
-                        Logging.Log.WriteMessage(string.Format(Strings.BackendWrapper.OrphanIncrementalFoundMessage, be.Filename), Duplicati.Library.Logging.LogMessageType.Warning);
-                    else
-                        m_orphans.Add(be);
+                    if (!metadataOnly)
+                    {
+                        if (m_orphans == null)
+                            Logging.Log.WriteMessage(string.Format(Strings.BackendWrapper.OrphanIncrementalFoundMessage, be.Filename), Duplicati.Library.Logging.LogMessageType.Warning);
+                        else
+                            m_orphans.Add(be);
+                    }
                     continue;
                 }
                 else
@@ -585,16 +690,19 @@ namespace Duplicati.Library.Main
                 }
             }
 
-            foreach (VerificationEntry ve in verifications.Values)
-                AddOrphan(ve);
+            if (!metadataOnly)
+            {
+                foreach (VerificationEntry ve in verifications.Values)
+                    AddOrphan(ve);
 
-            foreach (List<ContentEntry> lb in contents.Values)
-                foreach (ContentEntry be in lb)
-                    AddOrphan(be);
+                foreach (List<ContentEntry> lb in contents.Values)
+                    foreach (ContentEntry be in lb)
+                        AddOrphan(be);
 
-            foreach (List<SignatureEntry> lb in signatures.Values)
-                foreach (SignatureEntry be in lb)
-                    AddOrphan(be);
+                foreach (List<SignatureEntry> lb in signatures.Values)
+                    foreach (SignatureEntry be in lb)
+                        AddOrphan(be);
+            }
 
             //Assign the manifest to allow traversing the chain of manifests
             foreach (ManifestEntry me in fulls)
@@ -608,7 +716,7 @@ namespace Duplicati.Library.Main
             }
 
 
-            if (m_statistics != null)
+            if (m_statistics != null && !metadataOnly)
             {
                 foreach (ManifestEntry me in fulls)
                 {
@@ -621,7 +729,34 @@ namespace Duplicati.Library.Main
                 }
             }
 
+            RecalculateChainMetadata(fulls);
+
             return fulls;
+        }
+
+        private long CalculateSizeOfBackupSet(ManifestEntry c, bool recurse)
+        {
+            long size = 0;
+            foreach (KeyValuePair<SignatureEntry, ContentEntry> x in c.Volumes)
+            {
+                if (x.Key.Filesize > 0)
+                    size += x.Key.Filesize;
+                if (x.Value.Filesize > 0)
+                    size += x.Value.Filesize;
+            }
+
+            if (c.Filesize > 0)
+                size += c.Filesize;
+            if (c.Alternate != null && c.Alternate.Filesize > 0)
+                size += c.Alternate.Filesize;
+            if (c.Verification != null && c.Verification.Filesize > 0)
+                size += c.Verification.Filesize;
+
+            if (recurse)
+                foreach (ManifestEntry me in c.Incrementals)
+                    size += CalculateSizeOfBackupSet(me, false);
+
+            return size;
         }
 
         private ManifestEntry SwapManifestAlternates(ManifestEntry m)
@@ -646,7 +781,7 @@ namespace Duplicati.Library.Main
         public List<ManifestEntry> GetBackupSets()
         {
             using (new Logging.Timer("Getting and sorting filelist from " + m_backend.DisplayName))
-                return SortAndPairSets(List(true));
+                return SortAndPairSets(List(true), false);
         }
 
         public void Put(BackupEntryBase remote, string filename)
@@ -861,14 +996,23 @@ namespace Duplicati.Library.Main
 
                     BackupEntryBase be = m_filenamestrategy.ParseFilename(s);
                     if (m_options.Force)
+                    {
                         this.Delete(be ?? new SignatureEntry(s.Name, s, DateTime.Now, true, "", "", "", 0));
+                        m_metadata.OrphanFileCount--;
+                        if (s.Size > 0)
+                            m_metadata.OrphanFileSize -= s.Size;
+                    }
                 }
 
                 sb.AppendLine(string.Format(Strings.BackendWrapper.DeletingTransactionLeftoverFile, m_transactionFile.Filename));
 
                 if (m_options.Force)
                     this.Delete(m_transactionFile);
-                
+
+                m_metadata.OrphanFileCount--;
+                if (m_transactionFile.Filesize > 0)
+                    m_metadata.OrphanFileSize -= m_transactionFile.Filesize;
+
                 m_transactionFile = null;
 
                 sb.AppendLine(Strings.BackendWrapper.CompletedDeleteTransaction);
@@ -920,6 +1064,9 @@ namespace Duplicati.Library.Main
                     if (m_statistics != null)
                         m_statistics.LogWarning(string.Format(Strings.BackendWrapper.RemoveOrphanFileWarning, be.Filename), null);
                     this.Delete(be);
+                    m_metadata.OrphanFileCount--;
+                    if (be.Filesize > 0)
+                        m_metadata.OrphanFileSize -= be.Filesize;
                 }
 
                 if (be is ManifestEntry)
@@ -939,7 +1086,14 @@ namespace Duplicati.Library.Main
                             }
 
                             this.Delete(bex.Key);
+                            m_metadata.OrphanFileCount--;
+                            if (bex.Key.Filesize > 0)
+                                m_metadata.OrphanFileSize -= bex.Key.Filesize;
+
                             this.Delete(bex.Value);
+                            m_metadata.OrphanFileCount--;
+                            if (bex.Value.Filesize > 0)
+                                m_metadata.OrphanFileSize -= bex.Value.Filesize;
                         }
                     }
             }
@@ -984,7 +1138,19 @@ namespace Duplicati.Library.Main
                     DisposeBackend();
 
                     if (ex is Library.Interface.FolderMissingException && m_backendSupportsCreateFolder && m_options.AutocreateFolders)
-                        return new List<Library.Interface.IFileEntry>();
+                    {
+                        ResetBackend();
+                        try
+                        {
+                            m_statistics.AddNumberOfRemoteCalls(1);
+                            ((Library.Interface.IBackend_v2)m_backend).CreateFolder();
+                        }
+                        catch(Exception exc) 
+                        {
+                            m_statistics.LogWarning(string.Format(Strings.BackendWrapper.AutoCreateFolderFailed, exc.Message), exc);
+                            DisposeBackend();
+                        }
+                    }
 
                     retries--;
                     if (retries > 0 && m_options.RetryDelay.Ticks > 0)
@@ -1033,6 +1199,10 @@ namespace Duplicati.Library.Main
 
             if (lastEx != null)
                 throw new Exception(string.Format(Strings.BackendWrapper.FileDeleteError2, remote.Filename, lastEx.Message), lastEx);
+
+            m_metadata.TotalFileCount--;
+            if (remote.Filesize > 0)
+                m_metadata.TotalSize -= remote.Filesize;
 
             if (remote is SignatureEntry && !string.IsNullOrEmpty(m_options.SignatureCachePath))
             {
@@ -1382,20 +1552,6 @@ namespace Duplicati.Library.Main
                         if (m_backendInterfaceLogger != null)
                             m_backendInterfaceLogger.RegisterPut(log_fe, false, ex.ToString());
                         DisposeBackend();
-
-                        //Even if we can create the folder, we still count it as an error to prevent trouble with backends
-                        // that report OK for CreateFolder, but still report the folder as missing
-                        if (ex is Library.Interface.FolderMissingException && m_backendSupportsCreateFolder && m_options.AutocreateFolders)
-                        {
-                            ResetBackend();
-                            try 
-                            {
-                                m_statistics.AddNumberOfRemoteCalls(1);
-                                (m_backend as Library.Interface.IBackend_v2).CreateFolder(); 
-                            }
-                            catch { DisposeBackend(); }
-                        }
-                            
                         
                         lastEx = ex;
                         m_statistics.LogRetryAttempt(ex.Message, ex);
@@ -1410,6 +1566,33 @@ namespace Duplicati.Library.Main
                     throw new Exception(string.Format(Strings.BackendWrapper.FileUploadError2, remotename, lastEx == null ? "<null>" : lastEx.Message), lastEx);
 
                 m_statistics.AddBytesUploaded(sourceFileSize);
+                if (remote is ManifestEntry)
+                {
+                    if (remotename.IndexOf("manifestA") > remotename.IndexOf("manifestB"))
+                    {
+                        if (m_manifestSizeA == 0)
+                            m_metadata.TotalFileCount++;
+
+                        m_metadata.SourceFileSize += (sourceFileSize - m_manifestSizeA);
+                        m_manifestSizeA = sourceFileSize;
+                    }
+                    else
+                    {
+                        if (m_manifestSizeB == 0)
+                            m_metadata.TotalFileCount++;
+
+                        m_metadata.SourceFileSize += (sourceFileSize - m_manifestSizeB);
+                        m_manifestSizeB = sourceFileSize;
+                    }
+
+                    m_metadata.TotalVolumeCount++;
+                }
+                else
+                {
+                    m_metadata.TotalSize += sourceFileSize;
+                    m_metadata.TotalBackupSize += sourceFileSize;
+                    m_metadata.TotalFileCount ++;
+                }
             }
             finally
             {
@@ -1663,6 +1846,8 @@ namespace Duplicati.Library.Main
 
         }
 
+        public Backupmetadata Metadata { get { return m_metadata; } }
+
         private void DisposeInternal()
         {
             DisposeBackend();
@@ -1685,5 +1870,53 @@ namespace Duplicati.Library.Main
         }
 
         #endregion
+
+        public void RecalculateChainMetadata(List<ManifestEntry> flatlist)
+        {
+            List<ManifestEntry> fulls = new List<ManifestEntry>();
+            foreach (ManifestEntry mfe in flatlist)
+                if (mfe.IsFull)
+                    fulls.Add(mfe);
+
+            m_metadata.FullBackupCount = fulls.Count;
+            long maxlen = 0;
+            long volumecount = 0;
+            long fullsize = 0;
+            long sets = 0;
+            foreach (ManifestEntry me in fulls)
+            {
+                maxlen = Math.Max(maxlen, me.Incrementals.Count + 1);
+                volumecount += me.Volumes.Count;
+                sets++;
+                foreach (ManifestEntry mex in me.Incrementals)
+                {
+                    volumecount += mex.Volumes.Count;
+                    sets++;
+                }
+                fullsize += CalculateSizeOfBackupSet(me, true);
+            }
+            m_metadata.LongestChainLength = maxlen;
+            m_metadata.TotalVolumeCount = volumecount;
+            m_metadata.TotalBackupSize = fullsize;
+            m_metadata.TotalBackupSets = sets;
+
+            if (fulls.Count > 0)
+            {
+                ManifestEntry cur = fulls[fulls.Count - 1];
+                m_metadata.CurrentChainLength = cur.Incrementals.Count + 1;
+                m_metadata.CurrentFullDate = cur.Time;
+                m_metadata.CurrentChainSize = CalculateSizeOfBackupSet(cur, true);
+
+                if (cur.Incrementals.Count > 0)
+                    cur = cur.Incrementals[cur.Incrementals.Count - 1];
+
+                m_metadata.LastBackupDate = cur.Time;
+                m_metadata.LastBackupSize = CalculateSizeOfBackupSet(cur, false);
+            }
+            else
+            {
+                m_metadata.RemoveCurrentBackupData();
+            }
+        }
     }
 }

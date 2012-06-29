@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Duplicati.Datamodel;
-//using Duplicati.Library.Main;
 using Duplicati.Server.Serialization;
 
 namespace Duplicati.Server
@@ -72,7 +71,7 @@ namespace Duplicati.Server
         public void ExecuteTask(IDuplicityTask task)
         {
             Dictionary<string, string> options = new Dictionary<string,string>();
-            
+
             //Set the log level to be that of the GUI
             options["log-level"] = Duplicati.Library.Logging.Log.LogLevel.ToString();
 
@@ -96,6 +95,7 @@ namespace Duplicati.Server
                     SetupControlInterface();
 
                     i.OperationProgress += new Duplicati.Library.Main.OperationProgressEvent(Duplicati_OperationProgress);
+                    i.MetadataReport += new Library.Main.MetadataReportDelegate(new MetadataReportCapture(task).Duplicati_MetadataReport);
 
                     switch (task.TaskType)
                     {
@@ -311,7 +311,8 @@ namespace Duplicati.Server
                         m_extraOperations--;
 
                         RemoveAllButNFullTask tmpTask = new RemoveAllButNFullTask(task.Schedule, (int)task.Schedule.Task.KeepFull);
-                        ExecuteTask(tmpTask);
+                        tmpTask.Metadata = task.Metadata;
+                        ExecuteTask(tmpTask);   
                         results += Environment.NewLine + Strings.DuplicatiRunner.CleanupLogdataHeader + Environment.NewLine + tmpTask.Result;
                     }
 
@@ -326,6 +327,7 @@ namespace Duplicati.Server
                         m_extraOperations--;
 
                         RemoveOlderThanTask tmpTask = new RemoveOlderThanTask(task.Schedule, task.Schedule.Task.KeepTime);
+                        tmpTask.Metadata = task.Metadata;
                         ExecuteTask(tmpTask);
                         results += Environment.NewLine + Strings.DuplicatiRunner.CleanupLogdataHeader + Environment.NewLine + tmpTask.Result;
                     }
@@ -362,13 +364,72 @@ namespace Duplicati.Server
                     else if (l.ParsedStatus == DuplicatiOutputParser.WarningStatus)
                         r = RunnerResult.Warning;
 
-                    ResultEvent(r, parsedMessage, results);
+                    if (ResultEvent != null)
+                        ResultEvent(r, parsedMessage, results);
                 }
             }
 
             if (task.Schedule != null && !m_isAborted)
+            {
+                //Write metadata to schedule prior to commit
+                if (task.Metadata != null)
+                {
+                    //Backups will replace all entries in the metadata table
+                    if (task is FullOrIncrementalTask)
+                    {
+                        //Make a copy so we are sure we return the dictionary too
+                        Dictionary<string, string> tmp = new Dictionary<string, string>(task.Metadata);
+
+                        //Update existing and remove unused
+                        foreach (string k in new List<string>(task.Schedule.MetadataLookup.Values))
+                            if (tmp.ContainsKey(k))
+                            {
+                                task.Schedule.MetadataLookup[k] = tmp[k];
+                                tmp.Remove(k);
+                            }
+                            else
+                                task.Schedule.MetadataLookup.Remove(k);
+
+                        //Add new elements
+                        foreach (KeyValuePair<string, string> kv in tmp)
+                            task.Schedule.MetadataLookup[kv.Key] = kv.Value;
+
+                        //Add a value stating that we have run a backup now
+                        task.Schedule.MetadataLookup["last-backup-completed-time"] = DateTime.Now.ToUniversalTime().ToString("u");
+                    }
+                    else
+                    {
+                        //Any other task will just update the table values
+                        foreach (KeyValuePair<string, string> kv in task.Metadata)
+                            task.Schedule.MetadataLookup[kv.Key] = kv.Value;
+                    }
+                }
+
                 task.Schedule.ScheduledRunCompleted(); //Register as completed if not aborted
+            }
+
+            Program.StatusEventNotifyer.SignalNewEvent();
         }
+
+        private class MetadataReportCapture
+        {
+            private IDuplicityTask Task;
+            public MetadataReportCapture(IDuplicityTask task)
+            {
+                this.Task = task;
+            }
+
+            public void Duplicati_MetadataReport(IDictionary<string, string> metadata)
+            {
+                if (Task.Metadata == null)
+                    Task.Metadata = new Dictionary<string, string>();
+
+                foreach (KeyValuePair<string, string> kvp in metadata)
+                    Task.Metadata[kvp.Key] = kvp.Value;
+            }
+
+        }
+
 
         void Duplicati_OperationProgress(Duplicati.Library.Main.Interface caller, Duplicati.Library.Main.DuplicatiOperation operation, Duplicati.Library.Main.DuplicatiOperationMode specificmode, int progress, int subprogress, string message, string submessage)
         {

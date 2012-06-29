@@ -54,12 +54,7 @@ namespace Duplicati.Server.Serializable
 
         public IList<long> SchedulerQueueIds
         {
-            get { return Program.Scheduler.Schedule.Select(x => x.ID).ToList(); }
-        }
-
-        public IProgressEventData RunningBackupStatus
-        {
-            get { return Program.Runner.LastEvent; }
+            get { return Program.Scheduler.WorkerQueue.Select(x => x.ID).ToList(); }
         }
         
         public bool HasWarning { get { return Program.HasWarning; } }
@@ -90,6 +85,36 @@ namespace Duplicati.Server.Serializable
                 }
             }
         }
+
+        public DateTime LastLogUpdate
+        {
+            get 
+            { 
+                var lst = Program.DataConnection.GetObjects<Datamodel.Log>().Select(x => x.EndTime).ToList();
+                if (lst.Count == 0)
+                    return new DateTime(0);
+                else
+                    return lst.Max();
+            }
+        }
+
+        public DateTime EstimatedPauseEnd 
+        {
+            get 
+            { 
+                return Program.LiveControl.EstimatedPauseEnd; 
+            }
+        }
+
+        private long m_lastEventID = Program.StatusEventNotifyer.EventNo;
+
+        public long LastEventID 
+        { 
+            get { return m_lastEventID; }
+            set { m_lastEventID = value; }
+        }
+
+        public long LastDataUpdateID { get { return Program.LastDataUpdateID; } }
     }
 }
 

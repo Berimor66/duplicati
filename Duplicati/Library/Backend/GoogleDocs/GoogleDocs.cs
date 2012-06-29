@@ -162,11 +162,29 @@ namespace Duplicati.Library.Backend
 
             foreach (Google.Documents.Document d in parentlookup.Values)
             {
-                string[] p = new string[d.ParentFolders.Count + 1];
-                for (int i = 0; i < p.Length - 1; i++)
-                    p[i] = parentlookup[d.ParentFolders[i]].Title;
+                List<Google.Documents.Document> parents = new List<Google.Documents.Document>();
+                Google.Documents.Document cur = d;
+                while (cur.ParentFolders.Count == 1)
+                {
+                    parents.Add(cur);
+                    cur = parentlookup[cur.ParentFolders[0]];
+                }
+                parents.Add(cur);
 
-                p[p.Length - 1] = d.Title;
+                if (cur.ParentFolders.Count != 0)
+                {
+                    string[] pids = new string[cur.ParentFolders.Count];
+                    for(int i = 0; i < pids.Length; i++)
+                        pids[i] = parentlookup[cur.ParentFolders[i]].Title;
+
+                    throw new Exception(string.Format(Strings.GoogleDocs.FolderHasMultipleOwnersError, cur.Title, string.Join(", ", pids)));
+                }
+
+                parents.Reverse();
+                string[] p = new string[parents.Count];
+                for (int i = 0; i < p.Length; i++)
+                    p[i] = parents[i].Title;
+
                 string key = string.Join("/", p);
                 if (dict.ContainsKey(key))
                     throw new Exception(string.Format(Strings.GoogleDocs.DuplicateFoldernameFoundError, key));
@@ -414,10 +432,11 @@ namespace Duplicati.Library.Backend
                         //Authenticate our request
                         m_cla.ApplyAuthenticationToRequest(req);
 
-                        using (System.IO.Stream s = req.GetRequestStream())
+                        Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(req);
+                        using (System.IO.Stream s = areq.GetRequestStream())
                             s.Write(data, 0, data.Length);
 
-                        using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                        using (HttpWebResponse resp = (HttpWebResponse)areq.GetResponse())
                         {
                             int code = (int)resp.StatusCode;
                             if (code < 200 || code >= 300) //For some reason Mono does not throw this automatically
@@ -446,7 +465,8 @@ namespace Duplicati.Library.Backend
                         //Authenticate our request
                         m_cla.ApplyAuthenticationToRequest(req);
 
-                        using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                        Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(req);
+                        using (HttpWebResponse resp = (HttpWebResponse)areq.GetResponse())
                         {
                             int code = (int)resp.StatusCode;
                             if (code < 200 || code >= 300) //For some reason Mono does not throw this automatically
@@ -480,7 +500,8 @@ namespace Duplicati.Library.Backend
                         req.Headers.Add("Content-Range", string.Format("bytes {0}-{1}/{2}", initialPosition, initialPosition + (postbytes - 1), stream.Length.ToString()));
 
                         //Copy the current fragment of bytes
-                        using (System.IO.Stream s = req.GetRequestStream())
+                        Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(req);
+                        using (System.IO.Stream s = areq.GetRequestStream())
                         {
                             long bytesleft = postbytes;
                             long written = 0;
@@ -500,7 +521,7 @@ namespace Duplicati.Library.Backend
 
                         try
                         {
-                            using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                            using (HttpWebResponse resp = (HttpWebResponse)areq.GetResponse())
                             {
                                 int code = (int)resp.StatusCode;
                                 if (code < 200 || code >= 300) //For some reason Mono does not throw this automatically
@@ -544,10 +565,24 @@ namespace Duplicati.Library.Backend
                         }
                         catch (WebException wex)
                         {
-                            //Accept the 308 until we are complete
-                            if (wex.Status == WebExceptionStatus.ProtocolError &&
+							bool acceptedError =
+								wex.Status == WebExceptionStatus.ProtocolError &&
                                 wex.Response is HttpWebResponse &&
-                                (int)((HttpWebResponse)wex.Response).StatusCode == 308 &&
+                                (int)((HttpWebResponse)wex.Response).StatusCode == 308;
+
+							//Mono does not give us the response object,
+							// so we rely on the error code being present
+							// in the string, not ideal, but I have found
+							// no other workaround :(
+							if (Duplicati.Library.Utility.Utility.IsMono)
+							{
+								acceptedError |= 
+									wex.Status == WebExceptionStatus.ProtocolError &&
+									wex.Message.Contains("308");
+							}
+
+                            //Accept the 308 until we are complete
+                            if (acceptedError &&
                                 initialPosition + postbytes != stream.Length)
                             {
                                 retries = 0;
@@ -562,7 +597,7 @@ namespace Duplicati.Library.Backend
                                 if (retries > 2)
                                     throw;
                                 else
-                                    System.Threading.Thread.Sleep(1000);
+                                    System.Threading.Thread.Sleep(2000 * retries);
 
                                 stream.Position = initialPosition;
                             }

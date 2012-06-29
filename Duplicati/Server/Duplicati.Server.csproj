@@ -82,10 +82,10 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DatabaseUpgrader.cs" />
     <Compile Include="DuplicatiOutputParser.cs" />
     <Compile Include="DuplicatiRunner.cs" />
     <Compile Include="DynamicSetupHelper.cs" />
+    <Compile Include="EventPollNotify.cs" />
     <Compile Include="LiveControls.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -95,11 +95,6 @@
     <Compile Include="Serializable\JobSettings.cs" />
     <Compile Include="SingleInstance.cs" />
     <Compile Include="SQLiteLoader.cs" />
-    <Compile Include="Strings\DatabaseUpgrader.Designer.cs">
-      <DependentUpon>DatabaseUpgrader.resx</DependentUpon>
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-    </Compile>
     <Compile Include="Strings\DuplicatiRunner.Designer.cs">
       <DependentUpon>DuplicatiRunner.resx</DependentUpon>
       <AutoGen>True</AutoGen>
@@ -133,77 +128,8 @@
     <None Include="app.config" />
     <None Include="Duplicati.snk" />
     <EmbeddedResource Include="backup defaults.xml" />
-    <Content Include="webroot\scripts\app-base.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\scripts\app-functions.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\scripts\customized.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\scripts\jquery-1.7.1.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\scripts\status-window.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\status-window.html">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\stylesheets\common.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\stylesheets\customized.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\stylesheets\jquery-ui-cupertino.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\stylesheets\jquery-ui.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\stylesheets\status-window.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\gfx\drop-arrow.gif">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\gfx\round-box2.gif">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\gfx\round-box3.gif">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\gfx\round-dot.gif">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\gfx\spinner.gif">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="webroot\edit-window.html">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\scripts\edit-window.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\scripts\jquery-ui-1.8.18.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\stylesheets\edit-window.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <EmbeddedResource Include="Database schema\1. Support timestamp flag.sql" />
-    <EmbeddedResource Include="Database schema\2. Refactor for easier extensions.sql" />
-    <EmbeddedResource Include="Database schema\3. Default managed SSH.sql" />
-    <EmbeddedResource Include="Database schema\4. Support for setting controls.sql" />
-    <EmbeddedResource Include="Database schema\5. Remove signaturekey.sql" />
-    <EmbeddedResource Include="Database schema\6. Remove TimeSeparator and UseShortFilenames.sql" />
-    <EmbeddedResource Include="Database schema\7. Add error message field to log.sql" />
-    <EmbeddedResource Include="Database schema\Schema.sql" />
-    <EmbeddedResource Include="Database schema\8. Add filter fields.sql" />
     <Content Include="SQLite\pinvoke\System.Data.SQLite.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -211,9 +137,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="SQLite\win64\System.Data.SQLite.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="webroot\index.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -234,6 +157,10 @@
       <Project>{B60D0993-B0C5-457A-90D9-DB6EEB33CE47}</Project>
       <Name>Datamodel</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Library\Backend\File\Duplicati.Library.Backend.File.csproj">
+      <Project>{FC9B7611-836F-4127-8B44-A7C31F506807}</Project>
+      <Name>Duplicati.Library.Backend.File</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Library\Backend\GoogleDocs\Duplicati.Library.Backend.GoogleDocs.csproj">
       <Project>{42C91180-11EB-4590-82EA-80FE9D4DEBEC}</Project>
       <Name>Duplicati.Library.Backend.GoogleDocs</Name>
@@ -245,10 +172,6 @@
     <ProjectReference Include="..\Library\Backend\CloudFiles\Duplicati.Library.Backend.CloudFiles.csproj">
       <Project>{1BFAE226-8364-4086-825C-BB83F6F3EE4C}</Project>
       <Name>Duplicati.Library.Backend.CloudFiles</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Library\Backend\File\Duplicati.Library.Backend.File.csproj">
-      <Project>{FC9B7611-836F-4127-8B44-A7C31F506807}</Project>
-      <Name>Duplicati.Library.Backend.File</Name>
     </ProjectReference>
     <ProjectReference Include="..\Library\Backend\FTP\Duplicati.Library.Backend.FTP.csproj">
       <Project>{F61679A9-E5DE-468A-B5A4-05F92D0143D2}</Project>
@@ -312,11 +235,6 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Strings\DatabaseUpgrader.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>DatabaseUpgrader.Designer.cs</LastGenOutput>
-      <SubType>Designer</SubType>
-    </EmbeddedResource>
     <EmbeddedResource Include="Strings\DuplicatiRunner.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>DuplicatiRunner.Designer.cs</LastGenOutput>
@@ -339,6 +257,9 @@
       <LastGenOutput>TaskType.Designer.cs</LastGenOutput>
       <SubType>Designer</SubType>
     </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="webroot\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

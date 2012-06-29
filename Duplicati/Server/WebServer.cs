@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,11 +12,20 @@ namespace Duplicati.Server
     public class WebServer
     {
         /// <summary>
+        /// Option for changing the webroot folder
+        /// </summary>
+        private const string OPTION_WEBROOT = "webservice-webroot";
+        /// <summary>
+        /// Option for changing the webservice listen port
+        /// </summary>
+        private const string OPTION_PORT = "webservice-port";
+
+        /// <summary>
         /// The single webserver instance
         /// </summary>
         private HttpServer.HttpServer m_server;
              
-        public WebServer(int port)
+        public WebServer(IDictionary<string, string> options)
         {
             m_server = new HttpServer.HttpServer();
 
@@ -38,14 +47,46 @@ namespace Duplicati.Server
             }
 
 #endif
-            FileModule fh = new FileModule("/", System.IO.Path.Combine(webroot, "webroot"));
-            fh.AddDefaultMimeTypes();
-            m_server.Add(fh);
+            webroot = System.IO.Path.Combine(webroot, "webroot");
 
+            if (options.ContainsKey(OPTION_WEBROOT))
+            {
+                string userroot = options[OPTION_WEBROOT];
+#if DEBUG
+                //In debug mode we do not care where the path points
+#else
+                //In release mode we check that the usersupplied path is located
+                // in the same folders as the running application, to avoid users
+                // that inadvertently expose top level folders
+                if (!string.IsNullOrWhiteSpace(userroot)
+                    &&
+                    (
+                        userroot.StartsWith(Library.Utility.Utility.AppendDirSeparator(System.Reflection.Assembly.GetExecutingAssembly().Location), Library.Utility.Utility.ClientFilenameStringComparision)
+                        ||
+                        userroot.StartsWith(Library.Utility.Utility.AppendDirSeparator(Program.StartupPath), Library.Utility.Utility.ClientFilenameStringComparision)
+                    )
+                )
+#endif
+                {
+                    webroot = userroot;
+                }
+            }
+
+            FileModule fh = new FileModule("/", webroot);
+            fh.AddDefaultMimeTypes();
+            fh.MimeTypes.Add("htc", "text/x-component");
+            fh.MimeTypes.Add("json", "application/json");
+            m_server.Add(fh);
+            m_server.Add(new IndexHtmlHandler(System.IO.Path.Combine(webroot, "status-window.html")));
 #if DEBUG
             //For debugging, it is nice to know when we get a 404
             m_server.Add(new DebugReportHandler());
 #endif
+
+            int port;
+            string portstring;
+            if (!options.TryGetValue(OPTION_PORT, out portstring) || !int.TryParse(portstring, out port))
+                port = 8080;
 
             m_server.Start(System.Net.IPAddress.Any, port);
         }
@@ -78,6 +119,34 @@ namespace Duplicati.Server
             }
         }
 
+        private class IndexHtmlHandler : HttpModule
+        {
+            private string m_defaultdoc;
+
+            public IndexHtmlHandler(string defaultdoc) { m_defaultdoc = defaultdoc; }
+
+            public override bool Process(HttpServer.IHttpRequest request, HttpServer.IHttpResponse response, HttpServer.Sessions.IHttpSession session)
+            {
+                if ((request.Uri.AbsolutePath == "/" || request.Uri.AbsolutePath == "/index.html" || request.Uri.AbsolutePath == "/index.htm") && System.IO.File.Exists(m_defaultdoc))
+                {
+                    response.Status = System.Net.HttpStatusCode.OK;
+                    response.Reason = "OK";
+                    response.ContentType = "text/html";
+
+                    using (var fs = System.IO.File.OpenRead(m_defaultdoc))
+                    {
+                        response.ContentLength = fs.Length;
+                        response.Body = fs;
+                        response.Send();
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
         private class DebugReportHandler : HttpModule
         {
             public override bool Process(HttpServer.IHttpRequest request, HttpServer.IHttpResponse response, HttpServer.Sessions.IHttpSession session)
@@ -102,6 +171,7 @@ namespace Duplicati.Server
                 SUPPORTED_METHODS.Add("supported-actions", ListSupportedActions);
                 SUPPORTED_METHODS.Add("list-schedules", ListSchedules);
                 SUPPORTED_METHODS.Add("get-current-state", GetCurrentState);
+                SUPPORTED_METHODS.Add("get-progress-state", GetProgressState);
                 SUPPORTED_METHODS.Add("list-application-settings", ListApplicationSettings);
                 SUPPORTED_METHODS.Add("list-installed-backends", GetInstalledBackends);
                 SUPPORTED_METHODS.Add("list-installed-encryption-modules", ListInstalledEncryptionModules);
@@ -191,9 +261,70 @@ namespace Duplicati.Server
                 OutputObject(bw, Program.DataConnection.GetObjects<Datamodel.Schedule>());
             }
 
+            private bool LongPollCheck(HttpServer.IHttpRequest request, HttpServer.IHttpResponse response, BodyWriter bw, EventPollNotify poller, ref long id, out bool isError)
+            {
+                HttpServer.HttpInput input = request.Method.ToUpper() == "POST" ? request.Form : request.QueryString;
+                if (Library.Utility.Utility.ParseBool(input["longpoll"].Value, false))
+                {
+                    long lastEventId;
+                    if (!long.TryParse(input["lasteventid"].Value, out lastEventId))
+                    {
+                        ReportError(response, bw, "When activating long poll, the request must include the last event id");
+                        isError = true;
+                        return false;
+                    }
+
+                    TimeSpan ts;
+                    try { ts = Library.Utility.Timeparser.ParseTimeSpan(input["duration"].Value); }
+                    catch (Exception ex)
+                    {
+                        ReportError(response, bw, "Invalid duration: " + ex.Message);
+                        isError = true;
+                        return false;
+                    }
+
+                    if (ts <= TimeSpan.FromSeconds(10) || ts.TotalMilliseconds > int.MaxValue)
+                    {
+                        ReportError(response, bw, "Invalid duration, must be at least 10 seconds, and less than " + int.MaxValue + " milliseconds");
+                        isError = true;
+                        return false;
+                    }
+
+                    isError = false;
+                    id = Program.StatusEventNotifyer.Wait(lastEventId, (int)ts.TotalMilliseconds);
+                    return true;
+                }
+
+                isError = false;
+                return false;
+            }
+
+            private void GetProgressState(HttpServer.IHttpRequest request, HttpServer.IHttpResponse response, HttpServer.Sessions.IHttpSession session, BodyWriter bw)
+            {
+                bool isError;
+                long id = 0;
+                if (LongPollCheck(request, response, bw, Program.ProgressEventNotifyer, ref id, out isError) || !isError)
+                {
+                    //TODO: Don't block if the backup is completed when entering the wait state
+                    OutputObject(bw, Program.Runner.LastEvent);
+                }
+            }
+
             private void GetCurrentState (HttpServer.IHttpRequest request, HttpServer.IHttpResponse response, HttpServer.Sessions.IHttpSession session, BodyWriter bw)
             {
-                OutputObject(bw, new Serializable.ServerStatus());
+                bool isError;
+                long id = 0;
+                if (LongPollCheck(request, response, bw, Program.StatusEventNotifyer, ref id, out isError))
+                {
+                    //Make sure we do not report a higher number than the eventnotifyer says
+                    var st = new Serializable.ServerStatus();
+                    st.LastEventID = id;
+                    OutputObject(bw, st);
+                }
+                else if (!isError)
+                {
+                    OutputObject(bw, new Serializable.ServerStatus());
+                }
             }
 
             private void GetInstalledBackends(HttpServer.IHttpRequest request, HttpServer.IHttpResponse response, HttpServer.Sessions.IHttpSession session, BodyWriter bw)
@@ -260,7 +391,7 @@ namespace Duplicati.Server
                 switch (command.ToLowerInvariant())
                 {
                     case "pause":
-                        if (input.Contains("duration"))
+                        if (input.Contains("duration") && !string.IsNullOrWhiteSpace(input["duration"].Value))
                         {
                             TimeSpan ts;
                             try { ts = Library.Utility.Timeparser.ParseTimeSpan(input["duration"].Value); }
@@ -269,7 +400,10 @@ namespace Duplicati.Server
                                 ReportError(response, bw, ex.Message);
                                 return;
                             }
-                            Program.LiveControl.Pause(ts);
+                            if (ts.TotalMilliseconds > 0)
+                                Program.LiveControl.Pause(ts);
+                            else
+                                Program.LiveControl.Pause();
                         }
                         else
                         {
@@ -307,7 +441,7 @@ namespace Duplicati.Server
                                 return;
                             }
 
-                            if (Library.Utility.Utility.ParseBoolOption(input["full"].ToDictionary(x => x.Name, x => x.Value), "full"))
+                            if (Library.Utility.Utility.ParseBoolOption(input.ToDictionary(x => x.Name, x => x.Value), "full"))
                                 Program.WorkThread.AddTask(new FullBackupTask(schedule));
                             else
                                 Program.WorkThread.AddTask(new IncrementalBackupTask(schedule));

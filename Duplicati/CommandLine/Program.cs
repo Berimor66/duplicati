@@ -35,9 +35,6 @@ namespace Duplicati.CommandLine
                 string filter = Duplicati.Library.Utility.FilenameFilter.EncodeAsFilter(Duplicati.Library.Utility.FilenameFilter.ParseCommandLine(cargs, true));
                 Dictionary<string, string> options = Library.Utility.CommandLineParser.ExtractOptions(cargs);
 
-                if (!string.IsNullOrEmpty(filter))
-                    options["filter"] = filter;
-
                 //If we are on Windows, append the bundled "win-tools" programs to the search path
                 //We add it last, to allow the user to override with other versions
                 if (!Library.Utility.Utility.IsClientLinux)
@@ -94,6 +91,10 @@ namespace Duplicati.CommandLine
                         return;
                     }
 
+                //After checking for internal options, we set the filter option
+                if (!string.IsNullOrEmpty(filter))
+                    options["filter"] = filter;
+
                 if (cargs.Count == 1)
                 {
                     switch (cargs[0].Trim().ToLower())
@@ -104,15 +105,12 @@ namespace Duplicati.CommandLine
                     }
                 }
 
-                if (cargs.Count < 2)
+                if (cargs.Count < 2 || cargs[0].Trim().Equals("help", StringComparison.InvariantCultureIgnoreCase))
                 {
-                    if (cargs.Count == 0 || cargs[0].Trim().Equals("help", StringComparison.InvariantCultureIgnoreCase))
-                        PrintUsage(true);
+                    if (cargs.Count < 2)
+                        Help.PrintUsage("help", options);
                     else
-                    {
-                        PrintUsage(false);
-                        PrintWrongNumberOfArguments(cargs, 2);
-                    }
+                        Help.PrintUsage(cargs[1], options);
                     
 
                     return;
@@ -127,6 +125,12 @@ namespace Duplicati.CommandLine
                     source = target;
                     target = cargs[2];
                     options["restore"] = null;
+                    cargs.RemoveAt(0);
+                }
+                else if (source.Trim().ToLower() == "backup" && cargs.Count == 3)
+                {
+                    source = target;
+                    target = cargs[2];
                     cargs.RemoveAt(0);
                 }
 
@@ -454,7 +458,7 @@ namespace Duplicati.CommandLine
 
         }
 
-        private static void PrintUsage(bool extended)
+        private static void PrintOldUsage(bool extended)
         {
             bool isLinux = Library.Utility.Utility.IsClientLinux;
 

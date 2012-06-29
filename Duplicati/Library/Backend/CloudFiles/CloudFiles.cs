@@ -139,9 +139,23 @@ namespace Duplicati.Library.Backend
                 System.Xml.XmlDocument doc = new System.Xml.XmlDocument();
 
                 HttpWebRequest req = CreateRequest("", extraUrl + markerUrl);
-                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
-                using (System.IO.Stream s = resp.GetResponseStream())
-                    doc.Load(s);
+
+                try
+                {
+                    Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(req);
+                    using (HttpWebResponse resp = (HttpWebResponse)areq.GetResponse())
+                    using (System.IO.Stream s = resp.GetResponseStream())
+                        doc.Load(s);
+                }
+                catch (WebException wex)
+                {
+                    if (markerUrl == "") //Only check on first itteration
+                        if (wex.Response is HttpWebResponse && ((HttpWebResponse)wex.Response).StatusCode == HttpStatusCode.NotFound)
+                            throw new FolderMissingException(wex);
+                    
+                    //Other error, just re-throw
+                    throw;
+                }
 
                 System.Xml.XmlNodeList lst = doc.SelectNodes("container/object");
 
@@ -196,7 +210,8 @@ namespace Duplicati.Library.Backend
             HttpWebRequest req = CreateRequest("/" + remotename, "");
 
             req.Method = "DELETE";
-            using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+            Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(req);
+            using (HttpWebResponse resp = (HttpWebResponse)areq.GetResponse())
                 if ((int)resp.StatusCode >= 300)
                     throw new WebException(Strings.CloudFiles.FileDeleteError, null, WebExceptionStatus.ProtocolError , resp);
                 else
@@ -238,7 +253,8 @@ namespace Duplicati.Library.Backend
         {
             HttpWebRequest createReq = CreateRequest("", "");
             createReq.Method = "PUT";
-            using (HttpWebResponse resp = (HttpWebResponse)createReq.GetResponse())
+            Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(createReq);
+            using (HttpWebResponse resp = (HttpWebResponse)areq.GetResponse())
             { }
         }
 
@@ -264,14 +280,8 @@ namespace Duplicati.Library.Backend
             HttpWebRequest req = CreateRequest("/" + remotename, "");
             req.Method = "GET";
 
-            //According to the MSDN docs, the timeout should only affect the 
-            // req.GetRequestStream() or req.GetResponseStream() call, but apparently
-            // it means that the entire operation on the request stream must
-            // be completed within the limit
-            //We use Infinite, and rely on the ReadWriteTimeout value instead
-            req.Timeout = System.Threading.Timeout.Infinite;
-
-            using (WebResponse resp = req.GetResponse())
+            Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(req);
+            using (WebResponse resp = areq.GetResponse())
             using (System.IO.Stream s = resp.GetResponseStream())
             using (MD5CalculatingStream mds = new MD5CalculatingStream(s))
             {
@@ -288,13 +298,6 @@ namespace Duplicati.Library.Backend
             HttpWebRequest req = CreateRequest("/" + remotename, "");
             req.Method = "PUT";
             req.ContentType = "application/octet-stream";
-
-            //According to the MSDN docs, the timeout should only affect the 
-            // req.GetRequestStream() or req.GetResponseStream() call, but apparently
-            // it means that the entire operation on the request stream must
-            // be completed within the limit
-            //We use Infinite, and rely on the ReadWriteTimeout value instead
-            req.Timeout = System.Threading.Timeout.Infinite;
 
             try { req.ContentLength = stream.Length; }
             catch { }
@@ -326,7 +329,8 @@ namespace Duplicati.Library.Backend
             {
                 string fileHash = null;
 
-                using (System.IO.Stream s = req.GetRequestStream())
+                Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(req);
+                using (System.IO.Stream s = areq.GetRequestStream())
                 using (MD5CalculatingStream mds = new MD5CalculatingStream(s))
                 {
                     Utility.Utility.CopyStream(stream, mds);
@@ -335,16 +339,25 @@ namespace Duplicati.Library.Backend
 
                 string md5Hash = null;
 
-                //Reset the timeout to the default value of 100 seconds to 
-                // avoid blocking the GetResponse() call
-                req.Timeout = 100000;
-
                 //We need to verify the eTag locally
-                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
-                    if ((int)resp.StatusCode >= 300)
-                        throw new WebException(Strings.CloudFiles.FileUploadError, null, WebExceptionStatus.ProtocolError, resp);
-                    else
-                        md5Hash = resp.Headers["ETag"];
+                try
+                {
+                    using (HttpWebResponse resp = (HttpWebResponse)areq.GetResponse())
+                        if ((int)resp.StatusCode >= 300)
+                            throw new WebException(Strings.CloudFiles.FileUploadError, null, WebExceptionStatus.ProtocolError, resp);
+                        else
+                            md5Hash = resp.Headers["ETag"];
+                }
+                catch (WebException wex)
+                {
+                    //Catch 404 and turn it into a FolderNotFound error
+                    if (wex.Response is HttpWebResponse && ((HttpWebResponse)wex.Response).StatusCode == HttpStatusCode.NotFound)
+                        throw new FolderMissingException(wex);
+
+                    //Other error, just re-throw
+                    throw;
+                }
+
 
                 if (md5Hash == null || md5Hash.ToLower() != fileHash.ToLower())
                 {
@@ -369,7 +382,8 @@ namespace Duplicati.Library.Backend
                 authReq.Headers.Add("X-Auth-Key", m_password);
                 authReq.Method = "GET";
 
-                using (WebResponse resp = authReq.GetResponse())
+                Utility.AsyncHttpRequest areq = new Utility.AsyncHttpRequest(authReq);
+                using (WebResponse resp = areq.GetResponse())
                 {
                     m_storageUrl = resp.Headers["X-Storage-Url"];
                     m_authToken = resp.Headers["X-Auth-Token"];
