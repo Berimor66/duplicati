@@ -79,6 +79,15 @@ namespace Duplicati.Library.Compression.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Please use the {0} option instead.
+        /// </summary>
+        internal static string CompressionlevelDeprecated {
+            get {
+                return ResourceManager.GetString("CompressionlevelDeprecated", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to This option controls the compression level used. A setting of zero gives no compression, and a setting of 9 gives maximum compression..
         /// </summary>
         internal static string CompressionlevelLong {
