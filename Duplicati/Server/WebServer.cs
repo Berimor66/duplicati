@@ -182,6 +182,8 @@ namespace Duplicati.Server
                 SUPPORTED_METHODS.Add("get-recent-log-details", GetLogBlob);
                 SUPPORTED_METHODS.Add("send-command", SendCommand);
                 SUPPORTED_METHODS.Add("get-backup-defaults", GetBackupDefaults);
+                SUPPORTED_METHODS.Add("get-folder-contents", GetFolderContents);
+                SUPPORTED_METHODS.Add("get-schedule-details", GetScheduleDetails);
             }
 
             public override bool Process (HttpServer.IHttpRequest request, HttpServer.IHttpResponse response, HttpServer.Sessions.IHttpSession session)
@@ -261,6 +263,64 @@ namespace Duplicati.Server
                 OutputObject(bw, Program.DataConnection.GetObjects<Datamodel.Schedule>());
             }
 
+            private void GetFolderContents(HttpServer.IHttpRequest request, HttpServer.IHttpResponse response, HttpServer.Sessions.IHttpSession session, BodyWriter bw)
+            {
+                HttpServer.HttpInput input = request.Method.ToUpper() == "POST" ? request.Form : request.QueryString;
+                if(input["path"] == null || input["path"].Value == null)
+                {
+                    ReportError(response, bw, "The path parameter was not set");
+                    return;
+                }
+
+                bool skipFiles = Library.Utility.Utility.ParseBool(input["onlyfolders"].Value, false);
+
+                string path = input["path"].Value;
+                if (!path.StartsWith("/"))
+                {
+                    ReportError(response, bw, "The path parameter must start with a forward-slash");
+                    return;
+                }
+
+                try
+                {
+                    path = Duplicati.Library.Utility.Utility.AppendDirSeparator(path);
+
+                    List<string> res = new List<string>();
+                    if (!Library.Utility.Utility.IsClientLinux)
+                    {
+                        if (path.Equals("/"))
+                        {
+                            foreach (DriveInfo di in System.IO.DriveInfo.GetDrives())
+                                res.Add("/" + di.RootDirectory.FullName.Replace('\\', '/'));
+
+                        }
+                        else
+                        {
+                            string winpath = path.Substring(1).Replace('/', '\\');
+                            foreach (string s in System.IO.Directory.GetDirectories(winpath))
+                                res.Add("/" + Library.Utility.Utility.AppendDirSeparator(s).Replace('\\', '/'));
+                            if (!skipFiles)
+                                foreach (string s in System.IO.Directory.GetFiles(winpath))
+                                    res.Add("/" + s.Replace('\\', '/'));
+                        }
+                    }
+                    else
+                    {
+                        foreach (string s in System.IO.Directory.GetDirectories(path))
+                            res.Add(Library.Utility.Utility.AppendDirSeparator(s));
+                        if (!skipFiles)
+                            foreach (string s in System.IO.Directory.GetFiles(path))
+                                res.Add(s);
+                    }
+
+                    OutputObject(bw, res);
+                }
+                catch (Exception ex)
+                {
+                    ReportError(response, bw, "Failed to process the path: " + ex.Message);
+                }
+            }
+
             private bool LongPollCheck(HttpServer.IHttpRequest request, HttpServer.IHttpResponse response, BodyWriter bw, EventPollNotify poller, ref long id, out bool isError)
             {
                 HttpServer.HttpInput input = request.Method.ToUpper() == "POST" ? request.Form : request.QueryString;
@@ -291,7 +351,7 @@ namespace Duplicati.Server
                     }
 
                     isError = false;
-                    id = Program.StatusEventNotifyer.Wait(lastEventId, (int)ts.TotalMilliseconds);
+                    id = poller.Wait(lastEventId, (int)ts.TotalMilliseconds);
                     return true;
                 }
 
@@ -306,7 +366,9 @@ namespace Duplicati.Server
                 if (LongPollCheck(request, response, bw, Program.ProgressEventNotifyer, ref id, out isError) || !isError)
                 {
                     //TODO: Don't block if the backup is completed when entering the wait state
-                    OutputObject(bw, Program.Runner.LastEvent);
+                    var ev = Program.Runner.LastEvent;
+                    ev.LastEventID = id;
+                    OutputObject(bw, ev);
                 }
             }
 
@@ -380,6 +442,21 @@ namespace Duplicati.Server
                 OutputObject(bw, new Serializable.JobSettings());
             }
 
+            private void GetScheduleDetails(HttpServer.IHttpRequest request, HttpServer.IHttpResponse response, HttpServer.Sessions.IHttpSession session, BodyWriter bw)
+            {
+                HttpServer.HttpInput input = request.Method.ToUpper() == "POST" ? request.Form : request.QueryString;
+                long id;
+                if (!long.TryParse(input["id"].Value, out id))
+                    ReportError(response, bw, "Invalid or missing schedule id");
+                else
+                {
+                    Datamodel.Schedule sc = Program.DataConnection.GetObjectById<Datamodel.Schedule>(id);
+                    OutputObject(bw, new {
+                        Schedule = sc,
+                        Task = sc.Task
+                    });
+                }
+            }
 
             private void SendCommand(HttpServer.IHttpRequest request, HttpServer.IHttpResponse response, HttpServer.Sessions.IHttpSession session, BodyWriter bw)
             {
