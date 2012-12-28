@@ -30,6 +30,12 @@ namespace Duplicati_Test
     [TestFixture()]
 	public class ProgramTest : BaseDuplicatiTest
     {
+        // Test initial Program UseDbEncryption flag state
+        [Test()]
+        public void TestInitialUseDbEncryptionValue() {
+            Assert.IsFalse(Duplicati.GUI.Program.UseDatabaseEncryption);
+        }
+        
         // Tests that the a new application settings db is created if missing, and yields default path values        [Test()]
         public void TestApplicationSettingsInitialization()
         {
@@ -69,7 +75,6 @@ namespace Duplicati_Test
                     Assert.AreEqual(ApplicationSettings.DefaultSignatureCachePath, appSettings.SignatureCachePath);
                 });
             });
-            
         }
     }
 }

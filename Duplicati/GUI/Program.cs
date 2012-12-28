@@ -263,7 +263,7 @@ namespace Duplicati.GUI
                     Program.UseDatabaseEncryption = !Library.Utility.Utility.ParseBoolOption(commandlineOptions, "unencrypted-database");
 #endif
 
-                    openSettingsDatabase(con, Program.DATAFOLDER, useEncryption: Program.UseDatabaseEncryption);
+                    OpenSettingsDatabase(con, Program.DATAFOLDER);
                 }
                 catch (Exception ex)
                 {
@@ -395,8 +395,7 @@ namespace Duplicati.GUI
         /// <param name="con">the db connection</param>
         /// <param name="datafolder">the database folder path</param>
         /// <param name="dbfile">the database file name within the data folder; defaults to "Duplicati.sqlite"</param>
-        /// <param name="useEncryption">whether the db uses encryption; should be derived from Program.UseDatabaseEncryption</param>
-        public static void openSettingsDatabase(System.Data.IDbConnection con, string datafolder, string dbfile = "Duplicati.sqlite", bool useEncryption = false) {
+        internal static void OpenSettingsDatabase(System.Data.IDbConnection con, string datafolder, string dbfile = "Duplicati.sqlite") {
             DatabasePath = System.IO.Path.Combine(datafolder, dbfile); 
             if (!System.IO.Directory.Exists(System.IO.Path.GetDirectoryName(DatabasePath)))
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(DatabasePath));
@@ -404,7 +403,7 @@ namespace Duplicati.GUI
             con.ConnectionString = "Data Source=" + DatabasePath;
 
             //Attempt to open the database, handling any encryption present
-            OpenDatabase(con, useEncryption);
+            OpenDatabase(con);
 
             DatabaseUpgrader.UpgradeDatabase(con, DatabasePath);
         }
@@ -479,10 +478,9 @@ namespace Duplicati.GUI
         /// Helper method with logic to handle opening a database in possibly encrypted format
         /// </summary>
         /// <param name="con">The SQLite connection object</param>
-        /// <param name="useEncryption">whether the database uses encryption; defaults to false</param>
-        internal static void OpenDatabase(System.Data.IDbConnection con, bool useEncryption = false)
+        internal static void OpenDatabase(System.Data.IDbConnection con)
         {
-            bool noEncryption = !useEncryption;
+            bool noEncryption = !Program.UseDatabaseEncryption;
             string password = Environment.GetEnvironmentVariable(DB_KEY_ENV_NAME);
 
             System.Reflection.MethodInfo setPwdMethod = con.GetType().GetMethod("SetPassword", new Type[] { typeof(string) });

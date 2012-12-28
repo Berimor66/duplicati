@@ -41,7 +41,7 @@ namespace Duplicati_Test
         {
             using(System.Data.IDbConnection con = (System.Data.IDbConnection)Activator.CreateInstance(Duplicati.Server.SQLiteLoader.SQLiteConnectionType))
             {
-                Duplicati.GUI.Program.openSettingsDatabase(con, tf, "Duplicati_Test.sqlite");
+                Duplicati.GUI.Program.OpenSettingsDatabase(con, tf, "Duplicati_Test.sqlite");
                 
                 var dataFetcher = new DataFetcherWithRelations(new SQLiteDataProvider(con));
                 var appSettings = new ApplicationSettings(dataFetcher);
