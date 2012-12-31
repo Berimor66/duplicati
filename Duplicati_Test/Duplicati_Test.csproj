@@ -42,6 +42,14 @@
   <ItemGroup>
     <Compile Include="ProgramTest.cs" />
     <Compile Include="BaseDuplicatiTest.cs" />
+    <Compile Include="FinishedRestoreSetupTest.cs" />
+    <Compile Include="WizardSettingsWrapperTest.cs" />
+    <Compile Include="UtilityTest.cs" />
+    <Compile Include="InterfaceTest.cs" />
+    <Compile Include="Utils.cs" />
+    <Compile Include="BaseBackupTest.cs" />
+    <Compile Include="BaseConfigurationTest.cs" />
+    <Compile Include="InheritableTestCase.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
@@ -61,5 +69,24 @@
       <Project>{B60D0993-B0C5-457A-90D9-DB6EEB33CE47}</Project>
       <Name>Datamodel</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Duplicati\Library\Interface\Duplicati.Library.Interface.csproj">
+      <Project>{C5899F45-B0FF-483C-9D38-24A9FCAAB237}</Project>
+      <Name>Duplicati.Library.Interface</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Duplicati\Library\Backend\File\Duplicati.Library.Backend.File.csproj">
+      <Project>{FC9B7611-836F-4127-8B44-A7C31F506807}</Project>
+      <Name>Duplicati.Library.Backend.File</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\WizardForm\WizardForm.csproj">
+      <Project>{F2854848-BF78-4A6D-9A2A-2AE2AFB70DF1}</Project>
+      <Name>WizardForm</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Duplicati\Library\Main\Duplicati.Library.Main.csproj">
+      <Project>{10D2D1B7-C664-41D8-9B3A-00040C3D421B}</Project>
+      <Name>Duplicati.Library.Main</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Duplicati.snk" />
   </ItemGroup>
 </Project>
